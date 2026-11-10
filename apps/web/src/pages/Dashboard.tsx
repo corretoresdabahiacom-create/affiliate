@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "../auth";
 import { useI18n, type MessageKey } from "../i18n";
+import { OpsDashboard } from "./OpsDashboard";
 
 export function Dashboard() {
   const { t } = useI18n();
@@ -50,10 +51,7 @@ export function Dashboard() {
         </section>
       </div>
 
-      <section className="card">
-        <h2 className="font-medium">{t("dashboard.nextTitle")}</h2>
-        <p className="mt-2 text-sm text-slate-600">{t("dashboard.catalogSoon")}</p>
-      </section>
+      <OpsDashboard />
     </div>
   );
 }

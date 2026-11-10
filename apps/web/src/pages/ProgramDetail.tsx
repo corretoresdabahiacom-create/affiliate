@@ -16,6 +16,7 @@ const TRI_CAMEL: Record<string, string> = {
   accepts_social: "acceptsSocial",
   accepts_paid_traffic: "acceptsPaidTraffic",
   accepts_organic: "acceptsOrganic",
+  allows_redirect: "allowsRedirect",
   is_recurring: "isRecurring",
 };
 
@@ -81,7 +82,10 @@ export function ProgramDetail() {
       </header>
 
       <ScoreCard programId={p.id} />
-      <Link to={`/simulator?program=${p.id}`} className="btn-secondary">{t("sim.simulateWith")}</Link>
+      <div className="flex flex-wrap items-center gap-2">
+        <Link to={`/simulator?program=${p.id}`} className="btn-secondary">{t("sim.simulateWith")}</Link>
+        <TrackButton programId={p.id} />
+      </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         <section className="card">
@@ -329,5 +333,25 @@ function EditorPanel({ detail, onChanged }: { detail: Detail; onChanged: () => v
         <button className="btn-secondary" onClick={() => run(() => api.setProgramStatus(p.id, status))}>{t("editor.applyStatus")}</button>
       </div>
     </section>
+  );
+}
+
+/** Salva o programa em "Meus programas" (ou mostra que já está lá). */
+function TrackButton({ programId }: { programId: string }) {
+  const { t } = useI18n();
+  const [state, setState] = useState<"idle" | "saved" | "error">("idle");
+  const [msg, setMsg] = useState<string | null>(null);
+  useEffect(() => {
+    api.myPrograms().then((r) => { if (r.items.some((i) => i.programId === programId)) setState("saved"); }).catch(() => {});
+  }, [programId]);
+  if (state === "saved") return <Link to="/my-programs" className="text-sm text-emerald-700 hover:underline">{t("myp.tracked")}</Link>;
+  return (
+    <>
+      <button className="btn" onClick={async () => {
+        try { await api.saveToMyPrograms(programId); setState("saved"); }
+        catch (e) { setState("error"); setMsg(e instanceof ApiError && e.code === "already_saved" ? null : errorMessage(e, t)); if (e instanceof ApiError && e.code === "already_saved") setState("saved"); }
+      }}>{t("myp.saveProgram")}</button>
+      {state === "error" && msg && <span role="alert" className="text-sm text-red-600">{msg}</span>}
+    </>
   );
 }

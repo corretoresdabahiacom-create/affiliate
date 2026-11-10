@@ -13,22 +13,7 @@ export const TRI_STATE = ["yes", "no", "unverified"] as const;
 export type TriState = (typeof TRI_STATE)[number];
 
 /** Status internos de inscrição do usuário em um programa. */
-export const APPLICATION_STATUS = [
-  "interested",
-  "saved",
-  "application_pending",
-  "approved",
-  "rejected",
-  "active",
-  "suspended",
-  "closed",
-] as const;
-export type ApplicationStatus = (typeof APPLICATION_STATUS)[number];
-
-/** Ciclo financeiro da comissão. Clique nunca vira venda sem confirmação. */
-export const COMMISSION_STATUS = ["estimated", "pending", "approved", "paid", "rejected"] as const;
-export type CommissionStatus = (typeof COMMISSION_STATUS)[number];
-
+export * from "./statuses";
 export const emailSchema = z
   .string()
   .trim()
@@ -48,6 +33,7 @@ export const verifyRequestSchema = z.object({
 
 export const CHANNELS = ["blog", "youtube", "instagram", "tiktok", "email", "other"] as const;
 export const NICHES = ["saas", "ai_tools", "physical_products", "digital_products", "services"] as const;
+export const LANGUAGES = ["pt", "en", "es", "fr", "de", "it", "other"] as const;
 export const EXPERIENCE = ["none", "beginner", "intermediate", "advanced"] as const;
 
 export const profileSchema = z.object({
@@ -61,6 +47,11 @@ export const profileSchema = z.object({
   monthlyBudgetUsd: z.number().int().min(0).max(1_000_000).optional(),
   wantsRecurring: z.boolean().default(false),
   acceptsPaidTraffic: z.boolean().default(false),
+  languages: z.array(z.enum(LANGUAGES)).max(7).default([]),
+  audienceSize: z.number().int().min(0).max(1_000_000_000).optional(),
+  weeklyHours: z.number().int().min(0).max(168).optional(),
+  prefersPhysical: z.boolean().default(false),
+  prefersSaas: z.boolean().default(false),
 });
 export type ProfileInput = z.infer<typeof profileSchema>;
 
@@ -73,3 +64,4 @@ export function formatCurrency(value: number, currency: string, locale: Locale):
 export * from "./catalog";
 export * from "./intel";
 export * from "./simulator";
+export * from "./ops";

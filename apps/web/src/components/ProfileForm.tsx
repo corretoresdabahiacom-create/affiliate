@@ -1,4 +1,4 @@
-import { CHANNELS, EXPERIENCE, NICHES, type ProfileInput } from "@ai/shared";
+import { CHANNELS, EXPERIENCE, LANGUAGES, NICHES, type ProfileInput } from "@ai/shared";
 import { useState, type FormEvent } from "react";
 import type { Me } from "../api";
 import { useI18n, type MessageKey } from "../i18n";
@@ -24,6 +24,11 @@ export function ProfileForm({
   const [budget, setBudget] = useState(initial?.monthlyBudgetUsd?.toString() ?? "");
   const [wantsRecurring, setWantsRecurring] = useState(initial?.wantsRecurring ?? false);
   const [paid, setPaid] = useState(initial?.acceptsPaidTraffic ?? false);
+  const [languages, setLanguages] = useState<string[]>(initial?.languages ?? []);
+  const [audience, setAudience] = useState(initial?.audienceSize?.toString() ?? "");
+  const [hours, setHours] = useState(initial?.weeklyHours?.toString() ?? "");
+  const [prefPhysical, setPrefPhysical] = useState(initial?.prefersPhysical ?? false);
+  const [prefSaas, setPrefSaas] = useState(initial?.prefersSaas ?? false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,6 +51,11 @@ export function ProfileForm({
         monthlyBudgetUsd: budget === "" ? undefined : Math.max(0, Math.round(Number(budget))),
         wantsRecurring,
         acceptsPaidTraffic: paid,
+        languages: languages as ProfileInput["languages"],
+        audienceSize: audience === "" ? undefined : Math.max(0, Math.round(Number(audience))),
+        weeklyHours: hours === "" ? undefined : Math.min(168, Math.max(0, Math.round(Number(hours)))),
+        prefersPhysical: prefPhysical,
+        prefersSaas: prefSaas,
       });
     } catch {
       setError(t("common.error"));
@@ -126,6 +136,38 @@ export function ProfileForm({
             {t("profile.acceptsPaidTraffic")}
           </label>
         </div>
+      </div>
+      <fieldset>
+        <legend className="label">{t("profile.languages")}</legend>
+        <div className="flex flex-wrap gap-3">
+          {LANGUAGES.map((l) => (
+            <label key={l} className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={languages.includes(l)} onChange={() => toggle(languages, setLanguages, l)} />
+              {t(`lang.${l}` as MessageKey)}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label className="label" htmlFor="audience">{t("profile.audienceSize")}</label>
+          <input id="audience" type="number" min={0} className="input" value={audience} onChange={(e) => setAudience(e.target.value)} />
+        </div>
+        <div>
+          <label className="label" htmlFor="hours">{t("profile.weeklyHours")}</label>
+          <input id="hours" type="number" min={0} max={168} className="input" value={hours} onChange={(e) => setHours(e.target.value)} />
+        </div>
+      </div>
+      <div className="space-y-2">
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={prefPhysical} onChange={(e) => setPrefPhysical(e.target.checked)} />
+          {t("profile.prefersPhysical")}
+        </label>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={prefSaas} onChange={(e) => setPrefSaas(e.target.checked)} />
+          {t("profile.prefersSaas")}
+        </label>
+        <p className="text-xs text-slate-500">{t("profile.prefsNote")}</p>
       </div>
       {error && (
         <p role="alert" className="text-sm text-red-600">

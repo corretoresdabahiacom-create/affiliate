@@ -18,6 +18,7 @@ export function errorMessage(
     }
     if (e.code.startsWith("duplicate_")) return t("err.duplicate");
     if (e.code === "unofficial_source_cannot_confirm") return t("err.unofficial");
+    if (`err.${e.code}` in MESSAGES["pt-BR"]) return t(`err.${e.code}` as MessageKey);
     if (e.status === 403) return t("error.forbidden");
   }
   return t("err.generic");

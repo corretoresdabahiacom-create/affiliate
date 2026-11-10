@@ -38,6 +38,11 @@ export interface Me {
     monthlyBudgetUsd: number | null;
     wantsRecurring: boolean;
     acceptsPaidTraffic: boolean;
+    languages: string[];
+    audienceSize: number | null;
+    weeklyHours: number | null;
+    prefersPhysical: boolean;
+    prefersSaas: boolean;
     onboarded: boolean;
   } | null;
 }
@@ -82,6 +87,7 @@ export interface CatalogProgram {
   acceptsSocial: Tri;
   acceptsPaidTraffic: Tri;
   acceptsOrganic: Tri;
+  allowsRedirect: Tri;
   commissionType: string;
   commissionPercent: number | null;
   commissionFixed: number | null;
@@ -153,6 +159,57 @@ export interface RecommendationsResponse {
   profileMissing: boolean;
   country: string | null;
 }
+
+// ---------- Fase 4: gestão do afiliado ----------
+export interface UserProgram {
+  id: string; programId: string; programName: string; advertiser: string; network: string | null;
+  status: string; appliedAt: number | null; approvedAt: number | null; affiliateId: string | null;
+  acceptedTerms: string | null; notes: string | null; nextAction: string | null; nextActionAt: number | null;
+  catalogStatus: string; needsReview: boolean; signupUrl: string | null; signupUrlStatus: string; officialUrl: string | null;
+}
+export interface UserProgramDetail {
+  item: UserProgram;
+  history: { from: string | null; to: string; note: string | null; at: number }[];
+  docs: { id: string; title: string; url: string; createdAt: number }[];
+}
+export interface AffLink {
+  id: string; code: string; label: string; url: string; programId: string | null; programName: string | null;
+  productId: string | null; productName: string | null; campaignId: string | null; channel: string; campaignTag: string | null;
+  trackingMode: "none" | "own_redirect"; active: boolean; redirectAllowed: boolean; trackUrl: string | null; clicks: number; clicks30d: number;
+}
+export interface Campaign {
+  id: string; name: string; programId: string | null; programName: string | null; productName: string | null; channel: string;
+  keyword: string | null; audience: string | null; budget: number | null; adSpend: number | null; currency: string; status: string;
+  startsAt: number | null; endsAt: number | null; clicksReported: number | null; conversionsReported: number | null; notes: string | null; paid: boolean;
+}
+export interface Commission {
+  id: string; programId: string | null; programName: string | null; linkId: string | null; campaignId: string | null;
+  productName: string | null; channel: string | null; amount: number; adjustments: number; netAmount: number; currency: string;
+  status: "estimated" | "pending" | "approved" | "paid" | "rejected"; conversionState: "reported" | "confirmed";
+  occurredAt: number; approvedAt: number | null; paidAt: number | null; origin: string; externalRef: string | null; notes: string | null;
+}
+export interface ImportResult { created: number; updated: number; unchanged: number; errors: { line: number; error: string }[]; dryRun: boolean }
+type ReconRow = { id: string; externalRef: string | null; amount: number; currency: string; status: string };
+export interface Reconciliation {
+  counts: Record<"own" | "report" | "matched" | "amountDiff" | "currencyDiff" | "statusDiff" | "missingInReport" | "unreferenced" | "missingInOwn", number>;
+  matched: { own: ReconRow; report: ReconRow }[]; amountDiff: { own: ReconRow; report: ReconRow }[];
+  currencyDiff: { own: ReconRow; report: ReconRow }[]; statusDiff: { own: ReconRow; report: ReconRow }[];
+  missingInReport: ReconRow[]; unreferenced: ReconRow[]; missingInOwn: ReconRow[];
+}
+type MoneyRow = { estimated: number; pending: number; approved: number; paid: number };
+export interface OpsDashboard {
+  programs: { discoveredInCatalog: number; saved: number; interested: number; pendingApplications: number; approved: number; active: number; rejected: number; byStatus: Record<string, number> };
+  productsPromoted: number; linksRegistered: number;
+  clicks: { ownTracking: number; manualReported: number; ownTrackingByChannel: { channel: string; clicks: number }[] };
+  conversions: { confirmedByNetwork: number; reportedByUser: number; manualReportedInCampaigns: number };
+  commissionsByCurrency: Record<string, MoneyRow & { rejected: number }>;
+  commissionsByOrigin: Record<string, number>;
+  byProduct: ({ name: string; currency: string } & MoneyRow)[];
+  byCategory: ({ name: string; currency: string } & MoneyRow)[];
+  byChannel: ({ name: string; currency: string } & MoneyRow)[];
+  nextActions: { id: string; programId: string; programName: string; nextAction: string | null; at: number }[];
+}
+
 export interface AlertItem {
   id: string;
   category: AlertCategory;
@@ -209,4 +266,27 @@ export const api = {
   alertPrefs: () => request<{ prefs: AlertPrefs }>("GET", "/api/intel/alerts/prefs"),
   saveAlertPrefs: (p: AlertPrefs) => request<{ ok: true }>("PUT", "/api/intel/alerts/prefs", p),
   alertsSeen: () => request<{ ok: true }>("POST", "/api/intel/alerts/seen"),
+  myPrograms: () => request<{ items: UserProgram[] }>("GET", "/api/ops/programs"),
+  saveToMyPrograms: (programId: string, status = "saved") => request<{ ok: true; id: string }>("POST", "/api/ops/programs", { programId, status }),
+  myProgram: (id: string) => request<UserProgramDetail>("GET", `/api/ops/programs/${id}`),
+  patchMyProgram: (id: string, body: Record<string, unknown>) => request<{ ok: true }>("PATCH", `/api/ops/programs/${id}`, body),
+  removeMyProgram: (id: string) => request<{ ok: true }>("DELETE", `/api/ops/programs/${id}`),
+  addDoc: (id: string, body: { title: string; url: string }) => request<{ ok: true }>("POST", `/api/ops/programs/${id}/docs`, body),
+  removeDoc: (id: string, docId: string) => request<{ ok: true }>("DELETE", `/api/ops/programs/${id}/docs/${docId}`),
+  links: () => request<{ items: AffLink[] }>("GET", "/api/ops/links"),
+  createLink: (body: Record<string, unknown>) => request<{ ok: true; id: string; code: string }>("POST", "/api/ops/links", body),
+  patchLink: (id: string, body: Record<string, unknown>) => request<{ ok: true }>("PATCH", `/api/ops/links/${id}`, body),
+  deleteLink: (id: string) => request<{ ok: true }>("DELETE", `/api/ops/links/${id}`),
+  campaigns: () => request<{ items: Campaign[] }>("GET", "/api/ops/campaigns"),
+  createCampaign: (body: Record<string, unknown>) => request<{ ok: true; id: string; warnings: string[] }>("POST", "/api/ops/campaigns", body),
+  deleteCampaign: (id: string) => request<{ ok: true }>("DELETE", `/api/ops/campaigns/${id}`),
+  commissions: (status = "") => request<{ items: Commission[] }>("GET", `/api/ops/commissions${status ? `?status=${status}` : ""}`),
+  createCommission: (body: Record<string, unknown>) => request<{ ok: true; id: string }>("POST", "/api/ops/commissions", body),
+  setCommissionStatus: (id: string, status: string) => request<{ ok: true }>("POST", `/api/ops/commissions/${id}/status`, { status }),
+  addAdjustment: (id: string, body: { kind: string; amount: number }) => request<{ ok: true }>("POST", `/api/ops/commissions/${id}/adjustments`, body),
+  deleteCommission: (id: string) => request<{ ok: true }>("DELETE", `/api/ops/commissions/${id}`),
+  importCommissions: (programId: string, csv: string, dryRun: boolean) =>
+    request<ImportResult>("POST", "/api/ops/commissions/import", { programId, csv, dryRun }),
+  reconciliation: (programId: string) => request<Reconciliation>("GET", `/api/ops/reconciliation?programId=${programId}`),
+  opsDashboard: () => request<OpsDashboard>("GET", "/api/ops/dashboard"),
 };

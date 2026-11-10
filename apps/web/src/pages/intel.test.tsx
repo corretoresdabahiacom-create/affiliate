@@ -32,7 +32,7 @@ const me = (role = "user") => ({ user: { id: "1", email: "a@a.com", role, planId
 const program = (id: string, name: string, over = {}) => ({
   id, name, segment: "saas", description: null, advertiser: { id: "a", name: "Acme" }, network: null, category: null,
   acceptsBrazil: "unverified", acceptsIndividuals: "unverified", requiresCompany: "unverified", requiresWebsite: "unverified",
-  acceptsSocial: "unverified", acceptsPaidTraffic: "unverified", acceptsOrganic: "unverified", commissionType: "unknown",
+  acceptsSocial: "unverified", acceptsPaidTraffic: "unverified", acceptsOrganic: "unverified", allowsRedirect: "unverified", commissionType: "unknown",
   commissionPercent: null, commissionFixed: null, currency: null, isRecurring: "unverified", recurringDurationMonths: null,
   cookieDays: null, minPayout: null, payoutCurrency: null, payoutFrequency: "unknown", validationDays: null, officialUrl: null,
   signupUrl: null, signupUrlStatus: "unverified", docsUrl: null, lifecycleStatus: "active", verificationFlag: "none",

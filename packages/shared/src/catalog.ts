@@ -44,6 +44,7 @@ export const TRI_FIELDS = [
   "accepts_paid_traffic",
   "accepts_organic",
   "is_recurring",
+  "allows_redirect",
 ] as const;
 export type TriField = (typeof TRI_FIELDS)[number];
 
@@ -182,6 +183,8 @@ export const programSchema = z.object({
   acceptsSocial: tri,
   acceptsPaidTraffic: tri,
   acceptsOrganic: tri,
+  /** O programa permite redirecionamento/link rastreável próprio? Só "sim" libera o redirecionamento. */
+  allowsRedirect: tri,
 
   commissionType: z.enum(COMMISSION_TYPES).default("unknown"),
   commissionPercent: z.number().min(0).max(100).nullish(),

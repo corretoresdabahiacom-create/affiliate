@@ -20,7 +20,7 @@ intel.use("*", requireUser);
 const OFFICIAL = "('official_docs','official_page','official_api','official_communication')";
 const DAY = 86_400_000;
 
-async function loadConfig(db: D1Database): Promise<ScoringConfig> {
+export async function loadConfig(db: D1Database): Promise<ScoringConfig> {
   const r = await db.prepare("SELECT value FROM admin_settings WHERE key = 'scoring_config'").first<{ value: string }>();
   if (!r) return resolveScoringConfig(null);
   try {

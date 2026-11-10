@@ -1,6 +1,6 @@
 # Affiliate Intelligence AI
 
-Plataforma SaaS de descoberta, inteligência e gestão de marketing de afiliados. Este repositório está na **Fase 3 (inteligência de oportunidades)**; a gestão do afiliado e a IA vêm nas fases seguintes (veja o roadmap abaixo).
+Plataforma SaaS de descoberta, inteligência e gestão de marketing de afiliados. Este repositório está na **Fase 4 (gestão do afiliado)**; a IA e as integrações vêm nas fases seguintes (veja o roadmap abaixo).
 
 ## O que já funciona (Fase 1)
 
@@ -28,6 +28,15 @@ Plataforma SaaS de descoberta, inteligência e gestão de marketing de afiliados
 - Comparação lado a lado de 2 a 4 programas, compatibilidade com brasileiros e recomendações (disponível só com aceitação confirmada).
 - Simulador de comissões (cliques, vendas, meta) e de SaaS recorrente com cenários de cancelamento, sempre rotulado como simulação.
 - Central de alertas derivada do histórico, com fonte e data de verificação. Veja [docs/INTELLIGENCE.md](docs/INTELLIGENCE.md).
+
+## O que já funciona (Fase 4)
+
+- Onboarding e perfil ampliado (idiomas, audiência, horas por semana, preferência por físico/SaaS).
+- **Meus programas**: 8 status, datas de inscrição/aprovação, ID de afiliado, condições aceitas, anotações, próxima ação, documentos (só referências) e histórico. Programa encerrado no catálogo é sinalizado e não pode ficar "em andamento".
+- **Links**: registro com programa, produto, campanha, canal e identificador; QR code gerado no navegador; redirecionamento rastreável próprio só quando o programa **confirmou** permitir. Veja [docs/OPERATIONS.md](docs/OPERATIONS.md).
+- **Campanhas** por canal (incluindo tráfego pago, que consulta a regra do programa antes).
+- **Comissões**: estimada → pendente → aprovada → paga, com reembolso, cancelamento, chargeback e ajuste; importação CSV do relatório da rede e conciliação.
+- **Painel** com indicadores separados por moeda, status e origem.
 
 ## Estrutura
 
@@ -73,7 +82,7 @@ Limites do plano gratuito a ter em mente: 100.000 requisições por dia, 10 ms d
 | 1 | Fundação: conta, perfil, admin, i18n, PWA | **Concluída** |
 | 2 | Catálogo de programas com fontes e verificação | **Concluída** |
 | 3 | Pontuação, simulador, comparação, recomendações, alertas | **Concluída** |
-| 4 | Inscrições, links e comissões manuais | Próxima |
+| 4 | Gestão do afiliado: programas, links, campanhas, comissões | **Concluída** |
 | 5 a 9 | IA, conteúdo, integrações, analytics, produção | Planejadas |
 
 ## Princípios do produto

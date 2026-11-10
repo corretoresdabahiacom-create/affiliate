@@ -18,6 +18,8 @@ import { COOKIE, requireRole, requireUser } from "./middleware";
 import { catalog } from "./catalog";
 import { intel } from "./intel";
 import { allow } from "./ratelimit";
+import { ops } from "./ops";
+import { isBotUserAgent } from "@ai/shared";
 import type { AppBindings, Env, SessionUser } from "./types";
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -174,6 +176,11 @@ type ProfileRow = {
   monthly_budget_usd: number | null;
   wants_recurring: number;
   accepts_paid_traffic: number;
+  languages?: string | null;
+  audience_size?: number | null;
+  weekly_hours?: number | null;
+  prefers_physical?: number;
+  prefers_saas?: number;
   onboarded_at: number | null;
 };
 
@@ -189,6 +196,11 @@ const toProfile = (r: ProfileRow | null) =>
     monthlyBudgetUsd: r.monthly_budget_usd,
     wantsRecurring: !!r.wants_recurring,
     acceptsPaidTraffic: !!r.accepts_paid_traffic,
+    languages: JSON.parse(r.languages ?? "[]") as string[],
+    audienceSize: r.audience_size ?? null,
+    weeklyHours: r.weekly_hours ?? null,
+    prefersPhysical: !!r.prefers_physical,
+    prefersSaas: !!r.prefers_saas,
     onboarded: r.onboarded_at !== null,
   };
 
@@ -210,13 +222,16 @@ app.put("/api/me/profile", requireUser, async (c) => {
   const now = Date.now();
   await c.env.DB.prepare(
     `INSERT INTO user_profiles (user_id, display_name, locale, country, experience, niches, channels,
-       has_website, monthly_budget_usd, wants_recurring, accepts_paid_traffic, onboarded_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       has_website, monthly_budget_usd, wants_recurring, accepts_paid_traffic, languages, audience_size,
+       weekly_hours, prefers_physical, prefers_saas, onboarded_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(user_id) DO UPDATE SET
        display_name = excluded.display_name, locale = excluded.locale, country = excluded.country,
        experience = excluded.experience, niches = excluded.niches, channels = excluded.channels,
        has_website = excluded.has_website, monthly_budget_usd = excluded.monthly_budget_usd,
        wants_recurring = excluded.wants_recurring, accepts_paid_traffic = excluded.accepts_paid_traffic,
+       languages = excluded.languages, audience_size = excluded.audience_size, weekly_hours = excluded.weekly_hours,
+       prefers_physical = excluded.prefers_physical, prefers_saas = excluded.prefers_saas,
        onboarded_at = COALESCE(user_profiles.onboarded_at, excluded.onboarded_at),
        updated_at = excluded.updated_at`,
   )
@@ -232,6 +247,11 @@ app.put("/api/me/profile", requireUser, async (c) => {
       p.monthlyBudgetUsd ?? null,
       p.wantsRecurring ? 1 : 0,
       p.acceptsPaidTraffic ? 1 : 0,
+      JSON.stringify(p.languages),
+      p.audienceSize ?? null,
+      p.weeklyHours ?? null,
+      p.prefersPhysical ? 1 : 0,
+      p.prefersSaas ? 1 : 0,
       now,
       now,
     )
@@ -241,6 +261,14 @@ app.put("/api/me/profile", requireUser, async (c) => {
 });
 
 // LGPD/GDPR: exportação e exclusão da própria conta.
+async function exportOps(db: D1Database, userId: string) {
+  const q = async (table: string) => (await db.prepare(`SELECT * FROM ${table} WHERE user_id = ?`).bind(userId).all()).results;
+  const [programs, programHistory, programDocs, links, linkClicks, campaigns, commissions, adjustments] = await Promise.all(
+    ["user_programs", "user_program_history", "user_program_docs", "affiliate_links", "link_clicks", "campaigns", "commissions", "commission_adjustments"].map(q),
+  );
+  return { programs, programHistory, programDocs, links, linkClicks, campaigns, commissions, adjustments };
+}
+
 app.get("/api/me/export", requireUser, async (c) => {
   const user = c.get("user");
   const created = await c.env.DB.prepare("SELECT created_at, last_login_at FROM users WHERE id = ?")
@@ -250,6 +278,7 @@ app.get("/api/me/export", requireUser, async (c) => {
     exportedAt: new Date().toISOString(),
     user: { ...user, ...created },
     profile: await loadProfile(c.env.DB, user.id),
+    ...(await exportOps(c.env.DB, user.id)),
   });
 });
 
@@ -351,6 +380,47 @@ admin.put("/plans/:id", async (c) => {
 app.route("/api/admin", admin);
 app.route("/api/catalog", catalog);
 app.route("/api/intel", intel);
+app.route("/api/ops", ops);
+
+// ---------- Redirecionamento próprio (/r/:code) ----------
+// Só funciona para links "own_redirect" de programas que CONFIRMARAM permitir redirecionamento.
+// Redireciona para a URL exata cadastrada (sem alterar parâmetros de rastreamento). Não usa cookies nem guarda IP.
+const CLICK_DEDUPE_MS = 30 * 60 * 1000;
+const CLICK_CAP_PER_HOUR = 500;
+
+app.get("/r/:code", async (c) => {
+  const link = await c.env.DB.prepare(
+    `SELECT l.id, l.user_id, l.url, l.active, l.tracking_mode, p.allows_redirect, p.lifecycle_status
+     FROM affiliate_links l LEFT JOIN affiliate_programs p ON p.id = l.program_id WHERE l.code = ?`,
+  )
+    .bind(c.req.param("code"))
+    .first<Record<string, any>>();
+  const headers = { "cache-control": "no-store", "referrer-policy": "no-referrer" };
+  if (!link) return c.text("Link not found", 404, headers);
+  if (!link.active || link.tracking_mode !== "own_redirect" || link.allows_redirect !== "yes" || link.lifecycle_status !== "active") {
+    return c.text("Link unavailable", 410, headers);
+  }
+  const ua = c.req.header("user-agent") ?? "";
+  if (!isBotUserAgent(ua)) {
+    const t = Date.now();
+    const day = new Date(t).toISOString().slice(0, 10);
+    const ip = c.req.header("cf-connecting-ip") ?? "";
+    // Hash diário com sal: não identifica a pessoa e não permite rastrear entre dias.
+    const visitor = (await sha256Hex(`${ip}|${ua}|${day}|${c.env.CLICK_SALT ?? "dev-salt"}`)).slice(0, 32);
+    const recent = await c.env.DB.prepare(
+      "SELECT COUNT(*) AS n, SUM(visitor_hash = ? AND at > ?) AS dup FROM link_clicks WHERE link_id = ? AND at > ?",
+    )
+      .bind(visitor, t - CLICK_DEDUPE_MS, link.id, t - 3_600_000)
+      .first<{ n: number; dup: number | null }>();
+    if ((recent?.n ?? 0) < CLICK_CAP_PER_HOUR && !(recent?.dup ?? 0)) {
+      await c.env.DB.prepare("INSERT INTO link_clicks (id, link_id, user_id, at, source, visitor_hash) VALUES (?, ?, ?, ?, ?, ?)")
+        .bind(crypto.randomUUID(), link.id, link.user_id, t, (c.req.query("s") ?? "").slice(0, 40) || null, visitor)
+        .run();
+    }
+  }
+  return c.redirect(link.url as string, 302);
+});
+
 
 app.notFound((c) => (c.req.path.startsWith("/api/") ? c.json({ error: "not_found" }, 404) : c.text("Not found", 404)));
 app.onError((err, c) => {

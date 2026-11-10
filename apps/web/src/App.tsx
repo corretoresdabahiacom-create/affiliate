@@ -15,6 +15,10 @@ import { Login } from "./pages/Login";
 import { Onboarding } from "./pages/Onboarding";
 import { Settings } from "./pages/Settings";
 import { Verify } from "./pages/Verify";
+import { MyPrograms } from "./pages/MyPrograms";
+import { Links } from "./pages/Links";
+import { Campaigns } from "./pages/Campaigns";
+import { Commissions } from "./pages/Commissions";
 
 /** Exige sessão; quem ainda não fez o onboarding é levado a ele. */
 function Protected({ children, requireOnboarded = true }: { children: React.ReactNode; requireOnboarded?: boolean }) {
@@ -43,6 +47,10 @@ export function App() {
         <Route path="/" element={<Protected><Dashboard /></Protected>} />
         <Route path="/programs" element={<Protected><Programs /></Protected>} />
         <Route path="/programs/:id" element={<Protected><ProgramDetail /></Protected>} />
+        <Route path="/my-programs" element={<Protected><MyPrograms /></Protected>} />
+        <Route path="/links" element={<Protected><Links /></Protected>} />
+        <Route path="/campaigns" element={<Protected><Campaigns /></Protected>} />
+        <Route path="/commissions" element={<Protected><Commissions /></Protected>} />
         <Route path="/recommendations" element={<Protected><Recommendations /></Protected>} />
         <Route path="/compare" element={<Protected><Compare /></Protected>} />
         <Route path="/simulator" element={<Protected><Simulator /></Protected>} />

@@ -46,6 +46,7 @@ const COLS: Record<keyof ProgramInput, string> = {
   acceptsSocial: "accepts_social",
   acceptsPaidTraffic: "accepts_paid_traffic",
   acceptsOrganic: "accepts_organic",
+  allowsRedirect: "allows_redirect",
   commissionType: "commission_type",
   commissionPercent: "commission_percent",
   commissionFixed: "commission_fixed",
@@ -78,6 +79,7 @@ const TRI_COLS = new Set([
   "accepts_paid_traffic",
   "accepts_organic",
   "is_recurring",
+  "allows_redirect",
 ]);
 /** Colunas numéricas/enum cujo valor "afirmativo" é um fato comercial e exige fonte oficial. */
 const FACT_COLS = new Set([
@@ -175,6 +177,7 @@ export function toProgram(r: Row, stale: number, now: number) {
     acceptsSocial: r.accepts_social,
     acceptsPaidTraffic: r.accepts_paid_traffic,
     acceptsOrganic: r.accepts_organic,
+    allowsRedirect: r.allows_redirect,
     commissionType: r.commission_type,
     commissionPercent: r.commission_percent,
     commissionFixed: r.commission_fixed,
@@ -603,6 +606,7 @@ const NO_FACTS_ON_CREATE = [
   "acceptsSocial",
   "acceptsPaidTraffic",
   "acceptsOrganic",
+  "allowsRedirect",
   "isRecurring",
 ] as const;
 

@@ -1,5 +1,40 @@
 # Changelog
 
+## Fase 4 — Gestão do afiliado (0.4.0)
+
+### Implementado
+
+- Migration `0004_ops.sql`: `allows_redirect` no catálogo (tri-estado), perfil ampliado e tabelas `user_programs`, `user_program_history`, `user_program_docs`, `campaigns`, `affiliate_links`, `link_clicks`, `commissions`, `commission_adjustments` (todas apagadas em cascata com a conta).
+- `packages/shared/src/ops.ts`: ciclo financeiro da comissão, valor líquido, conciliação, anti-bot e esquemas.
+- API `/api/ops` (programas, links, campanhas, comissões, importação CSV, conciliação, painel) e redirecionamento público `/r/:code`.
+- Telas: Meus programas, Links (com QR), Campanhas, Comissões (importação e conciliação), painel de operação, perfil ampliado e botão "Salvar e acompanhar" no programa. PT-BR, EN-US e ES.
+- Exportação da conta (`/api/me/export`) inclui os dados operacionais.
+- Documentação em `docs/OPERATIONS.md`.
+
+### Testes executados
+
+| Pacote | Testes | Resultado |
+| --- | --- | --- |
+| `@ai/shared` | 59 | passaram |
+| `@ai/api` (Workers + D1 via Miniflare) | 87 | passaram |
+| `@ai/web` (jsdom) | 40 | passaram |
+
+Também: `tsc` limpo, `vite build` e teste ponta a ponta com `wrangler dev` e as quatro migrations (link rastreável recusado sem confirmação oficial; liberado após fonte oficial; `/r/código` responde 302 para a URL exata, conta 1 clique humano e ignora robô; rota desconhecida 404; páginas do app continuam servidas).
+
+### Defeitos encontrados e corrigidos durante a fase
+
+- Importação circular entre `index.ts` e `ops.ts` deixava os enums indefinidos em tempo de execução; constantes de status foram para `statuses.ts`.
+- `INSERT` do perfil com 17 valores para 18 colunas; corrigido.
+
+### Limitações conhecidas
+
+- Documentos de programa são só título e link; nenhum arquivo é armazenado.
+- Não há origem "API" ainda (sincronização com redes é da Fase 6); a importação CSV é a forma de trazer dados da rede.
+- Cada clique vira uma linha no D1; alto volume exige agregação (Fase 8). Há teto de 500 cliques contados por link por hora.
+- Preferências do perfil (físico/SaaS, horas, audiência, idiomas) são guardadas mas ainda não entram na pontuação.
+- Tráfego pago é bloqueado/avisado só pelo campo `accepts_paid_traffic` do programa; não há integração com as plataformas de anúncio.
+- O bundle do frontend passou de 500 kB por causa dos três idiomas; divisão em partes fica para a Fase 9.
+
 ## Fase 3 — Inteligência de oportunidades (0.3.0)
 
 ### Implementado

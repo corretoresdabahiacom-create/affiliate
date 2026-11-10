@@ -1,4 +1,4 @@
-# Arquitetura (Fases 1 e 2)
+# Arquitetura (Fases 1 a 4)
 
 ## Visão geral
 
@@ -12,7 +12,9 @@ Cloudflare Worker (Hono)  ── arquivos estáticos de apps/web/dist (mesma ori
 D1 (SQLite): users, user_profiles, sessions, login_tokens,
              rate_limits, plans, admin_settings, audit_logs,
              affiliate_networks, advertisers, categories, affiliate_programs,
-             program_sources, program_history, products, offers, program_search (FTS5)
+             program_sources, program_history, products, offers, program_search (FTS5),
+             user_programs (+history, docs), campaigns, affiliate_links, link_clicks,
+             commissions, commission_adjustments
 ```
 
 Frontend e API na mesma origem eliminam CORS e simplificam o cookie de sessão.
@@ -29,6 +31,8 @@ Frontend e API na mesma origem eliminam CORS e simplificam o cookie de sessão.
 | Isolamento | Toda tabela privada tem `user_id`; as rotas leem o usuário da sessão, nunca de parâmetro | Um usuário só alcança os próprios dados |
 | Auditoria | Triggers bloqueiam `UPDATE` e `DELETE`; `user_id` sem chave estrangeira | Registro sobrevive à exclusão da conta, com id pseudônimo |
 | Planos | Preço e limites em tabela, editáveis pelo admin, `NULL` por padrão | Nenhum valor comercial fixo no código |
+| Redirecionamento próprio | Rota pública `/r/:code` atendida pelo Worker (`run_worker_first`); só para link `own_redirect` de programa com `allows_redirect = yes` e ativo | Não contraria regra do programa e não serve o app estático |
+| Cliques | Sem IP e sem cookie: hash diário com sal (`CLICK_SALT`); robôs ignorados; repetido em 30 min não conta; teto por hora | Privacidade e proteção contra manipulação |
 | Papéis | `user`, `editor`, `admin`; admin não altera o próprio papel | Evita ficar sem administrador por engano |
 
 ## Limites do plano gratuito (conferidos na documentação oficial da Cloudflare)

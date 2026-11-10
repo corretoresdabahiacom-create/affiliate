@@ -8,6 +8,7 @@ export interface Env {
   ADMIN_EMAILS?: string;
   EMAIL_FROM?: string;
   RESEND_API_KEY?: string;
+  CLICK_SALT?: string;
 }
 
 export interface SessionUser {

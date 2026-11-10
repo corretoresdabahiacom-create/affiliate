@@ -39,7 +39,7 @@ const program = (over = {}) => ({
   id: "p1", name: "Programa Teste", segment: "saas", description: null,
   advertiser: { id: "a1", name: "Acme" }, network: { id: "n1", name: "Awin" }, category: null,
   acceptsBrazil: "unverified", acceptsIndividuals: "unverified", requiresCompany: "unverified", requiresWebsite: "unverified",
-  acceptsSocial: "unverified", acceptsPaidTraffic: "unverified", acceptsOrganic: "unverified",
+  acceptsSocial: "unverified", acceptsPaidTraffic: "unverified", acceptsOrganic: "unverified", allowsRedirect: "unverified",
   commissionType: "unknown", commissionPercent: null, commissionFixed: null, currency: null,
   isRecurring: "unverified", recurringDurationMonths: null, cookieDays: null, minPayout: null, payoutCurrency: null,
   payoutFrequency: "unknown", validationDays: null, officialUrl: null, signupUrl: null, signupUrlStatus: "unverified",
