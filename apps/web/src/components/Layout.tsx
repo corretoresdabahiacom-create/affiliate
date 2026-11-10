@@ -42,6 +42,14 @@ export function Layout() {
             <NavLink to="/" end className={link}>
               {t("nav.dashboard")}
             </NavLink>
+            <NavLink to="/programs" className={link}>
+              {t("nav.programs")}
+            </NavLink>
+            {(me?.user.role === "editor" || me?.user.role === "admin") && (
+              <NavLink to="/catalog" className={link}>
+                {t("nav.catalog")}
+              </NavLink>
+            )}
             <NavLink to="/settings" className={link}>
               {t("nav.settings")}
             </NavLink>

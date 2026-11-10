@@ -1,5 +1,32 @@
 # Changelog
 
+## Fase 2 — Catálogo (0.2.0)
+
+### Implementado
+
+- Migration `0002_catalog.sql`: redes, anunciantes, categorias, programas (campos de aceitação tri-estado), fontes, histórico imutável, produtos, ofertas e índice FTS5.
+- Regras compartilhadas (`packages/shared/src/catalog.ts`): estados de verificação, tipos de fonte, chave de deduplicação, esquemas Zod.
+- API `/api/catalog`: leitura, busca e filtros para todos; gestão, fontes, verificação, ciclo de vida, produtos, ofertas e importação CSV para editor/admin.
+- Telas `/programs`, `/programs/:id` e `/catalog` em PT-BR, EN-US e ES.
+- Documentação em `docs/CATALOG.md`.
+
+### Testes executados
+
+| Pacote | Testes | Resultado |
+| --- | --- | --- |
+| `@ai/shared` | 22 | passaram |
+| `@ai/api` (Workers + D1 via Miniflare) | 50 | passaram |
+| `@ai/web` (jsdom) | 22 | passaram |
+
+Também: `tsc` limpo nos três pacotes, `vite build`, e teste manual ponta a ponta com `wrangler dev` e as duas migrations (recusa de fato sem fonte, busca, importação com duplicado, fallback de SPA).
+
+### Limitações conhecidas
+
+- O catálogo começa sem programas; as redes semeadas têm só o nome. ShareASale está como "em migração" com base na imprensa do setor; confirmar na fonte oficial.
+- Verificação é manual; coleta automatizada e IA ficam para fases futuras, sempre com aprovação humana.
+- Importação limitada a 100 linhas por vez; não há exclusão de fontes ou programas.
+- Continuam valendo as limitações da Fase 1 (e-mail e deploy não testados com contas reais; sem testes de navegador).
+
 ## Fase 1 — Fundação (0.1.0)
 
 ### Implementado

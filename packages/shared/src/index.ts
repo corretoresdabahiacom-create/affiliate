@@ -70,3 +70,4 @@ export const roleUpdateSchema = z.object({ role: z.enum(ROLES) });
 export function formatCurrency(value: number, currency: string, locale: Locale): string {
   return new Intl.NumberFormat(locale, { style: "currency", currency }).format(value);
 }
+export * from "./catalog";

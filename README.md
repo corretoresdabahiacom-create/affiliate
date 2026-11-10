@@ -1,6 +1,6 @@
 # Affiliate Intelligence AI
 
-Plataforma SaaS de descoberta, inteligência e gestão de marketing de afiliados. Este repositório está na **Fase 1 (fundação)**; o catálogo de programas, a pontuação, o simulador e a IA vêm nas fases seguintes (veja o roadmap abaixo).
+Plataforma SaaS de descoberta, inteligência e gestão de marketing de afiliados. Este repositório está na **Fase 2 (catálogo)**; a pontuação, o simulador e a IA vêm nas fases seguintes (veja o roadmap abaixo).
 
 ## O que já funciona (Fase 1)
 
@@ -12,6 +12,15 @@ Plataforma SaaS de descoberta, inteligência e gestão de marketing de afiliados
 - Interface em PT-BR e EN-US completos e ES em beta; formatação de moeda e data por localidade.
 - PWA básico (manifest, ícones, service worker que nunca guarda `/api/*`).
 - Proteções: cabeçalhos de segurança, CSRF por cabeçalho + checagem de `Origin`, limite de taxa no login, validação com Zod no backend, tokens guardados só como hash SHA-256.
+
+## O que já funciona (Fase 2)
+
+- Catálogo global de redes, empresas, programas, produtos e ofertas, com categorias em PT/EN/ES.
+- Busca de texto (FTS5) e filtros: segmento, categoria, rede, aceita Brasil, recorrente, tipo de tráfego, só verificados.
+- Fontes por campo (6 tipos, 4 oficiais), estados de verificação, histórico imutável de alterações e ciclo de vida (encerrados saem da lista).
+- Regra de integridade: "sim/não" e valores comerciais só entram com fonte oficial do mesmo campo. Veja [docs/CATALOG.md](docs/CATALOG.md).
+- Gestão para editores e administradores, com importação CSV (simulação, duplicados, erros).
+- O catálogo começa sem nenhum programa: nada foi inventado.
 
 ## Estrutura
 
@@ -55,8 +64,8 @@ Limites do plano gratuito a ter em mente: 100.000 requisições por dia, 10 ms d
 | --- | --- | --- |
 | 0 | Auditoria e arquitetura | Concluída |
 | 1 | Fundação: conta, perfil, admin, i18n, PWA | **Concluída** |
-| 2 | Catálogo de programas com fontes e verificação | Próxima |
-| 3 | Pontuação, simulador, comparação | Planejada |
+| 2 | Catálogo de programas com fontes e verificação | **Concluída** |
+| 3 | Pontuação, simulador, comparação | Próxima |
 | 4 | Inscrições, links e comissões manuais | Planejada |
 | 5 a 9 | IA, conteúdo, integrações, analytics, produção | Planejadas |
 

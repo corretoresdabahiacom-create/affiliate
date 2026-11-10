@@ -14,10 +14,11 @@ import {
 import { audit } from "./audit";
 import { randomToken, sha256Hex } from "./crypto";
 import { sendMagicLink } from "./mailer";
+import { COOKIE, requireRole, requireUser } from "./middleware";
+import { catalog } from "./catalog";
 import { allow } from "./ratelimit";
 import type { AppBindings, Env, SessionUser } from "./types";
 
-const COOKIE = "ai_session";
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const LOGIN_TTL_MS = 15 * 60 * 1000;
 const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
@@ -50,36 +51,6 @@ const adminEmails = (env: Env) =>
     .split(",")
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
-
-async function lookupSession(env: Env, token: string): Promise<{ user: SessionUser; hash: string } | null> {
-  const hash = await sha256Hex(token);
-  const row = await env.DB.prepare(
-    "SELECT u.id, u.email, u.role, u.plan_id FROM sessions s JOIN users u ON u.id = s.user_id " +
-      "WHERE s.token_hash = ? AND s.expires_at > ?",
-  )
-    .bind(hash, Date.now())
-    .first<{ id: string; email: string; role: Role; plan_id: string }>();
-  if (!row) return null;
-  return { user: { id: row.id, email: row.email, role: row.role, planId: row.plan_id }, hash };
-}
-
-const requireUser = async (c: any, next: any) => {
-  const token = getCookie(c, COOKIE);
-  if (!token) return c.json({ error: "unauthenticated" }, 401);
-  const found = await lookupSession(c.env, token);
-  if (!found) return c.json({ error: "unauthenticated" }, 401);
-  c.set("user", found.user);
-  c.set("sessionHash", found.hash);
-  await next();
-};
-
-const requireRole =
-  (...roles: Role[]) =>
-  async (c: any, next: any) => {
-    const user = c.get("user") as SessionUser;
-    if (!roles.includes(user.role)) return c.json({ error: "forbidden" }, 403);
-    await next();
-  };
 
 app.get("/api/health", (c) => c.json({ ok: true, environment: c.env.ENVIRONMENT }));
 
@@ -377,6 +348,7 @@ admin.put("/plans/:id", async (c) => {
 });
 
 app.route("/api/admin", admin);
+app.route("/api/catalog", catalog);
 
 app.notFound((c) => (c.req.path.startsWith("/api/") ? c.json({ error: "not_found" }, 404) : c.text("Not found", 404)));
 app.onError((err, c) => {

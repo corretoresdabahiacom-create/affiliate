@@ -1,4 +1,4 @@
-# Arquitetura (Fase 1)
+# Arquitetura (Fases 1 e 2)
 
 ## Visão geral
 
@@ -10,7 +10,9 @@ Cloudflare Worker (Hono)  ── arquivos estáticos de apps/web/dist (mesma ori
    │
    ▼
 D1 (SQLite): users, user_profiles, sessions, login_tokens,
-             rate_limits, plans, admin_settings, audit_logs
+             rate_limits, plans, admin_settings, audit_logs,
+             affiliate_networks, advertisers, categories, affiliate_programs,
+             program_sources, program_history, products, offers, program_search (FTS5)
 ```
 
 Frontend e API na mesma origem eliminam CORS e simplificam o cookie de sessão.
@@ -38,6 +40,7 @@ Para uso real com clientes, o Workers Paid (a partir de US$ 5 por mês) remove o
 
 ## Próximas fases
 
-- **Fase 2:** catálogo global (redes, anunciantes, programas, termos, fontes, histórico). Campos de aceitação tri-estado; busca com índices e FTS5 para caber nas leituras diárias do D1.
+- **Fase 2 (feita):** catálogo global; veja [CATALOG.md](CATALOG.md). Busca com FTS5 para caber nas leituras diárias do D1; importação em lotes de até 100 linhas por causa do limite de subrequisições.
+- **Fase 3:** pontuação, simulador e comparação sobre o catálogo.
 - **Eventos de alto volume (Fase 8):** cliques no Analytics Engine e agregação diária no D1; nunca uma linha por clique.
 - **Rate limit:** hoje usa o D1 (poucas escritas, só no login). Se o tráfego crescer, migrar para o recurso nativo de rate limiting do Workers.
