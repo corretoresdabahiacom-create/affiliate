@@ -3,8 +3,9 @@ import { useCallback, useEffect, useState } from "react";
 import { api, type AdminPlan, type AdminUser, type AuditEntry } from "../api";
 import { useAuth } from "../auth";
 import { useI18n, type MessageKey } from "../i18n";
+import { ScoringTab } from "./ScoringTab";
 
-type Tab = "users" | "plans" | "audit";
+type Tab = "users" | "plans" | "audit" | "scoring";
 
 export function Admin() {
   const { t } = useI18n();
@@ -33,10 +34,12 @@ export function Admin() {
         {tabBtn("users", t("admin.users"))}
         {tabBtn("plans", t("admin.plans"))}
         {tabBtn("audit", t("admin.audit"))}
+        {tabBtn("scoring", t("admin.scoring"))}
       </div>
       {tab === "users" && <UsersTab />}
       {tab === "plans" && <PlansTab />}
       {tab === "audit" && <AuditTab />}
+      {tab === "scoring" && <ScoringTab />}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api, type CatalogMeta, type CatalogProgram } from "../api";
 import { VerificationBadge, categoryName, TriBadge } from "../components/badges";
 import { useI18n, type MessageKey } from "../i18n";
@@ -14,6 +14,10 @@ export function Programs() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [picked, setPicked] = useState<string[]>([]);
+  const navigate = useNavigate();
+  const togglePick = (id: string) =>
+    setPicked((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : prev.length < 4 ? [...prev, id] : prev));
 
   useEffect(() => {
     api.catalogMeta().then(setMeta).catch(() => setError(true));
@@ -114,9 +118,19 @@ export function Programs() {
       ) : (
         <>
           <p className="text-sm text-slate-500">{t("programs.total", { n: total })}</p>
+          <div className="flex flex-wrap items-center gap-3">
+            <button className="btn-secondary" disabled={picked.length < 2} onClick={() => navigate(`/compare?ids=${picked.join(",")}`)}>
+              {t("programs.compareSelected", { n: picked.length })}
+            </button>
+            <span className="text-xs text-slate-500">{t("programs.compareHelp")}</span>
+          </div>
           <ul className="space-y-3">
             {items.map((p) => (
               <li key={p.id} className="card">
+                <label className="mb-2 flex items-center gap-2 text-xs text-slate-500">
+                  <input type="checkbox" checked={picked.includes(p.id)} onChange={() => togglePick(p.id)} />
+                  {t("programs.compare")}
+                </label>
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
                     <Link to={`/programs/${p.id}`} className="text-base font-medium text-indigo-700 hover:underline">

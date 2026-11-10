@@ -1,6 +1,6 @@
 # Affiliate Intelligence AI
 
-Plataforma SaaS de descoberta, inteligência e gestão de marketing de afiliados. Este repositório está na **Fase 2 (catálogo)**; a pontuação, o simulador e a IA vêm nas fases seguintes (veja o roadmap abaixo).
+Plataforma SaaS de descoberta, inteligência e gestão de marketing de afiliados. Este repositório está na **Fase 3 (inteligência de oportunidades)**; a gestão do afiliado e a IA vêm nas fases seguintes (veja o roadmap abaixo).
 
 ## O que já funciona (Fase 1)
 
@@ -21,6 +21,13 @@ Plataforma SaaS de descoberta, inteligência e gestão de marketing de afiliados
 - Regra de integridade: "sim/não" e valores comerciais só entram com fonte oficial do mesmo campo. Veja [docs/CATALOG.md](docs/CATALOG.md).
 - Gestão para editores e administradores, com importação CSV (simulação, duplicados, erros).
 - O catálogo começa sem nenhum programa: nada foi inventado.
+
+## O que já funciona (Fase 3)
+
+- Pontuação de 0 a 100 em duas dimensões independentes: qualidade dos dados e atratividade comercial, com justificativa separada em confirmado, interpretação e não verificado. Pesos e faixas editáveis pelo administrador.
+- Comparação lado a lado de 2 a 4 programas, compatibilidade com brasileiros e recomendações (disponível só com aceitação confirmada).
+- Simulador de comissões (cliques, vendas, meta) e de SaaS recorrente com cenários de cancelamento, sempre rotulado como simulação.
+- Central de alertas derivada do histórico, com fonte e data de verificação. Veja [docs/INTELLIGENCE.md](docs/INTELLIGENCE.md).
 
 ## Estrutura
 
@@ -65,8 +72,8 @@ Limites do plano gratuito a ter em mente: 100.000 requisições por dia, 10 ms d
 | 0 | Auditoria e arquitetura | Concluída |
 | 1 | Fundação: conta, perfil, admin, i18n, PWA | **Concluída** |
 | 2 | Catálogo de programas com fontes e verificação | **Concluída** |
-| 3 | Pontuação, simulador, comparação | Próxima |
-| 4 | Inscrições, links e comissões manuais | Planejada |
+| 3 | Pontuação, simulador, comparação, recomendações, alertas | **Concluída** |
+| 4 | Inscrições, links e comissões manuais | Próxima |
 | 5 a 9 | IA, conteúdo, integrações, analytics, produção | Planejadas |
 
 ## Princípios do produto

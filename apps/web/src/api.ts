@@ -1,4 +1,4 @@
-import type { ProfileInput, Role } from "@ai/shared";
+import type { AlertCategory, AlertPrefs, ProfileInput, Role, ScoreResult, ScoringConfig } from "@ai/shared";
 
 export class ApiError extends Error {
   constructor(
@@ -141,6 +141,33 @@ export interface ImportReport {
   dryRun: boolean;
 }
 
+export interface ScoredProgram {
+  program: CatalogProgram;
+  score: ScoreResult;
+}
+export interface RecommendationsResponse {
+  recommended: ScoredProgram[];
+  toVerify: ScoredProgram[];
+  excludedDenied: number;
+  evaluated: number;
+  profileMissing: boolean;
+  country: string | null;
+}
+export interface AlertItem {
+  id: string;
+  category: AlertCategory;
+  programId: string;
+  programName: string;
+  advertiser: string;
+  field: string | null;
+  oldValue: string | null;
+  newValue: string | null;
+  at: number;
+  lastVerifiedAt: number | null;
+  sourceUrl: string | null;
+  unread: boolean;
+}
+
 export const api = {
   me: () => request<Me>("GET", "/api/me"),
   requestLogin: (email: string, locale: string) =>
@@ -173,4 +200,13 @@ export const api = {
   createAdvertiser: (body: Record<string, unknown>) => request<{ ok: true; id: string }>("POST", "/api/catalog/advertisers", body),
   createNetwork: (body: Record<string, unknown>) => request<{ ok: true; id: string }>("POST", "/api/catalog/networks", body),
   importCsv: (csv: string, dryRun: boolean) => request<ImportReport>("POST", "/api/catalog/import", { csv, dryRun }),
+  intelScore: (id: string) => request<{ score: ScoreResult; profileMissing: boolean }>("GET", `/api/intel/programs/${id}/score`),
+  compare: (ids: string[]) => request<{ items: ScoredProgram[]; profileMissing: boolean }>("GET", `/api/intel/compare?ids=${ids.join(",")}`),
+  recommendations: () => request<RecommendationsResponse>("GET", "/api/intel/recommendations"),
+  scoringConfig: () => request<{ config: ScoringConfig }>("GET", "/api/intel/config"),
+  adminSaveScoring: (c: ScoringConfig) => request<{ ok: true }>("PUT", "/api/intel/admin/scoring", c),
+  alerts: () => request<{ alerts: AlertItem[]; unread: number }>("GET", "/api/intel/alerts?days=60"),
+  alertPrefs: () => request<{ prefs: AlertPrefs }>("GET", "/api/intel/alerts/prefs"),
+  saveAlertPrefs: (p: AlertPrefs) => request<{ ok: true }>("PUT", "/api/intel/alerts/prefs", p),
+  alertsSeen: () => request<{ ok: true }>("POST", "/api/intel/alerts/seen"),
 };

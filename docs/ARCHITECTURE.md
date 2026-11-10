@@ -41,6 +41,7 @@ Para uso real com clientes, o Workers Paid (a partir de US$ 5 por mês) remove o
 ## Próximas fases
 
 - **Fase 2 (feita):** catálogo global; veja [CATALOG.md](CATALOG.md). Busca com FTS5 para caber nas leituras diárias do D1; importação em lotes de até 100 linhas por causa do limite de subrequisições.
-- **Fase 3:** pontuação, simulador e comparação sobre o catálogo.
+- **Fase 3 (feita):** pontuação, comparação, simulador, recomendações e alertas; veja [INTELLIGENCE.md](INTELLIGENCE.md). Cálculo em funções puras no pacote compartilhado, configuração em `admin_settings`, alertas derivados do histórico imutável.
+- **Fase 4:** gestão do afiliado (programas salvos, inscrições, links, campanhas, comissões manuais).
 - **Eventos de alto volume (Fase 8):** cliques no Analytics Engine e agregação diária no D1; nunca uma linha por clique.
 - **Rate limit:** hoje usa o D1 (poucas escritas, só no login). Se o tráfego crescer, migrar para o recurso nativo de rate limiting do Workers.

@@ -5,6 +5,7 @@ import { api, ApiError, type ProgramDetail as Detail, type Tri } from "../api";
 import { useAuth } from "../auth";
 import { SafeLink, TriBadge, VerificationBadge, formatDate } from "../components/badges";
 import { errorMessage, fieldLabel } from "../components/errors";
+import { ScoreCard } from "../components/ScoreCard";
 import { useI18n, type MessageKey } from "../i18n";
 
 const TRI_CAMEL: Record<string, string> = {
@@ -78,6 +79,9 @@ export function ProgramDetail() {
         {p.description && <p className="text-sm">{p.description}</p>}
         <p className="text-xs text-slate-500">{t("detail.disclaimer")}</p>
       </header>
+
+      <ScoreCard programId={p.id} />
+      <Link to={`/simulator?program=${p.id}`} className="btn-secondary">{t("sim.simulateWith")}</Link>
 
       <div className="grid gap-4 md:grid-cols-2">
         <section className="card">

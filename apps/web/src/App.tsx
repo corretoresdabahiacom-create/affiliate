@@ -3,9 +3,13 @@ import { useAuth } from "./auth";
 import { Layout } from "./components/Layout";
 import { useI18n } from "./i18n";
 import { Admin } from "./pages/Admin";
+import { Alerts } from "./pages/Alerts";
 import { Catalog } from "./pages/Catalog";
+import { Compare } from "./pages/Compare";
 import { ProgramDetail } from "./pages/ProgramDetail";
 import { Programs } from "./pages/Programs";
+import { Recommendations } from "./pages/Recommendations";
+import { Simulator } from "./pages/Simulator";
 import { Dashboard } from "./pages/Dashboard";
 import { Login } from "./pages/Login";
 import { Onboarding } from "./pages/Onboarding";
@@ -39,6 +43,10 @@ export function App() {
         <Route path="/" element={<Protected><Dashboard /></Protected>} />
         <Route path="/programs" element={<Protected><Programs /></Protected>} />
         <Route path="/programs/:id" element={<Protected><ProgramDetail /></Protected>} />
+        <Route path="/recommendations" element={<Protected><Recommendations /></Protected>} />
+        <Route path="/compare" element={<Protected><Compare /></Protected>} />
+        <Route path="/simulator" element={<Protected><Simulator /></Protected>} />
+        <Route path="/alerts" element={<Protected><Alerts /></Protected>} />
         <Route path="/catalog" element={<Protected><Catalog /></Protected>} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/admin" element={<Admin />} />

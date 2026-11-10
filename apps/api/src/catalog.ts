@@ -88,7 +88,7 @@ const FACT_COLS = new Set([
   "validation_days",
 ]);
 
-type Row = Record<string, any>;
+export type Row = Record<string, any>;
 
 const serialize = (col: string, v: unknown): unknown => {
   if (col === "payout_methods") return JSON.stringify(v ?? []);
@@ -111,7 +111,7 @@ function requiredSourceField(col: string, oldV: unknown, newV: unknown): string 
 
 // ---------- Acesso a dados ----------
 
-async function staleDays(db: D1Database): Promise<number> {
+export async function staleDays(db: D1Database): Promise<number> {
   const r = await db
     .prepare("SELECT value FROM admin_settings WHERE key = 'stale_after_days'")
     .first<{ value: string }>();
@@ -159,7 +159,7 @@ const historyStmt = (
       Date.now(),
     );
 
-function toProgram(r: Row, stale: number, now: number) {
+export function toProgram(r: Row, stale: number, now: number) {
   return {
     id: r.id as string,
     name: r.name as string,
@@ -211,7 +211,7 @@ function toProgram(r: Row, stale: number, now: number) {
   };
 }
 
-const PROGRAM_SELECT = `SELECT p.*, a.name AS advertiser_name, n.name AS network_name, c.slug AS category_slug
+export const PROGRAM_SELECT = `SELECT p.*, a.name AS advertiser_name, n.name AS network_name, c.slug AS category_slug
   FROM affiliate_programs p
   JOIN advertisers a ON a.id = p.advertiser_id
   LEFT JOIN affiliate_networks n ON n.id = p.network_id

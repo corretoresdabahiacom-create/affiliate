@@ -16,6 +16,7 @@ import { randomToken, sha256Hex } from "./crypto";
 import { sendMagicLink } from "./mailer";
 import { COOKIE, requireRole, requireUser } from "./middleware";
 import { catalog } from "./catalog";
+import { intel } from "./intel";
 import { allow } from "./ratelimit";
 import type { AppBindings, Env, SessionUser } from "./types";
 
@@ -349,6 +350,7 @@ admin.put("/plans/:id", async (c) => {
 
 app.route("/api/admin", admin);
 app.route("/api/catalog", catalog);
+app.route("/api/intel", intel);
 
 app.notFound((c) => (c.req.path.startsWith("/api/") ? c.json({ error: "not_found" }, 404) : c.text("Not found", 404)));
 app.onError((err, c) => {
