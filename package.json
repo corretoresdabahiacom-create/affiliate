@@ -1,0 +1,17 @@
+{
+  "name": "affiliate-intelligence",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev:api": "npm run dev -w @ai/api",
+    "dev:web": "npm run dev -w @ai/web",
+    "build": "npm run build -w @ai/web",
+    "test": "npm run test -w @ai/shared && npm run test -w @ai/api && npm run test -w @ai/web",
+    "typecheck": "npm run typecheck -w @ai/shared && npm run typecheck -w @ai/api && npm run typecheck -w @ai/web",
+    "db:migrate:local": "npm run db:migrate:local -w @ai/api",
+    "db:migrate:remote": "npm run db:migrate:remote -w @ai/api"
+  },
+  "engines": { "node": ">=20" }
+}

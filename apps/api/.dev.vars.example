@@ -1,0 +1,4 @@
+# Copie para .dev.vars (ignorado pelo git) para desenvolvimento local.
+ENVIRONMENT=development
+APP_URL=http://localhost:8787
+ADMIN_EMAILS=voce@example.com

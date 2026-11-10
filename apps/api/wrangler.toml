@@ -1,0 +1,26 @@
+name = "affiliate-intelligence"
+main = "src/index.ts"
+compatibility_date = "2026-01-01"
+
+# Um único Worker serve a API (/api/*) e o frontend estático (apps/web/dist).
+[assets]
+directory = "../web/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "affiliate-intelligence"
+# Preencha após `wrangler d1 create affiliate-intelligence` (veja docs/DEPLOY.md).
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+[vars]
+ENVIRONMENT = "production"
+# URL pública do app (usada no link do e-mail). Ajuste para o seu domínio *.workers.dev.
+APP_URL = "http://localhost:8787"
+# E-mails (separados por vírgula) que viram admin no primeiro login.
+ADMIN_EMAILS = ""
+EMAIL_FROM = "Affiliate Intelligence <onboarding@example.com>"
+# Segredo opcional (wrangler secret put RESEND_API_KEY). Sem ele, o link é só registrado no log.
