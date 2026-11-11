@@ -19,6 +19,7 @@ import { catalog } from "./catalog";
 import { intel } from "./intel";
 import { allow } from "./ratelimit";
 import { ops } from "./ops";
+import { ai } from "./ai";
 import { isBotUserAgent } from "@ai/shared";
 import type { AppBindings, Env, SessionUser } from "./types";
 
@@ -381,6 +382,7 @@ app.route("/api/admin", admin);
 app.route("/api/catalog", catalog);
 app.route("/api/intel", intel);
 app.route("/api/ops", ops);
+app.route("/api/ai", ai);
 
 // ---------- Redirecionamento próprio (/r/:code) ----------
 // Só funciona para links "own_redirect" de programas que CONFIRMARAM permitir redirecionamento.

@@ -9,6 +9,8 @@ export interface Env {
   EMAIL_FROM?: string;
   RESEND_API_KEY?: string;
   CLICK_SALT?: string;
+  /** Workers AI (opcional). Sem ele, a IA responde só com os fatos do sistema. */
+  AI?: { run(model: string, input: unknown): Promise<unknown> };
 }
 
 export interface SessionUser {

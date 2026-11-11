@@ -4,8 +4,9 @@ import { api, type AdminPlan, type AdminUser, type AuditEntry } from "../api";
 import { useAuth } from "../auth";
 import { useI18n, type MessageKey } from "../i18n";
 import { ScoringTab } from "./ScoringTab";
+import { AiTab } from "./AiTab";
 
-type Tab = "users" | "plans" | "audit" | "scoring";
+type Tab = "users" | "plans" | "audit" | "scoring" | "ai";
 
 export function Admin() {
   const { t } = useI18n();
@@ -35,11 +36,13 @@ export function Admin() {
         {tabBtn("plans", t("admin.plans"))}
         {tabBtn("audit", t("admin.audit"))}
         {tabBtn("scoring", t("admin.scoring"))}
+        {tabBtn("ai", t("admin.ai"))}
       </div>
       {tab === "users" && <UsersTab />}
       {tab === "plans" && <PlansTab />}
       {tab === "audit" && <AuditTab />}
       {tab === "scoring" && <ScoringTab />}
+      {tab === "ai" && <AiTab />}
     </div>
   );
 }

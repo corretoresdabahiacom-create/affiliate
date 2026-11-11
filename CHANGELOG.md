@@ -1,5 +1,34 @@
 # Changelog
 
+## Fase 5 — Inteligência artificial (0.5.0)
+
+### Implementado
+
+- `packages/shared/src/ai.ts`: fatos do catálogo com estado da fonte, conferência de ancoragem (números e links), compatibilidade com o perfil, pesquisa em linguagem natural determinística, prompts e configuração de custos.
+- Migration `0005_ai.sql` (`ai_usage`, `ai_cache`, apagadas com a conta) e API `/api/ai`: assistente, pesquisa, análise e estratégia por programa, status, configuração e uso (admin).
+- Modelo: Workers AI (`[ai]` no `wrangler.toml`), sem cartão; injetável nos testes. Sem o binding, ou no limite, a IA responde só com dados do sistema.
+- Telas: `/assistant` (chat e pesquisa), painel de análise/estratégia no programa e aba IA na administração. PT-BR, EN-US e ES.
+- Documentação em `docs/AI.md`.
+
+### Testes executados
+
+| Pacote | Testes | Resultado |
+| --- | --- | --- |
+| `@ai/shared` | 72 | passaram |
+| `@ai/api` (Workers + D1 via Miniflare) | 107 | passaram |
+| `@ai/web` (jsdom) | 47 | passaram |
+
+Também: `tsc` limpo, `vite build` e teste ponta a ponta com `wrangler dev` e as cinco migrations (sem modelo: resposta só com fatos e fontes; sem dados: nada inventado; pesquisa; uso do admin).
+
+### Limitações conhecidas
+
+- **O modelo real não foi testado**: o ambiente não tem credencial da Cloudflare. Os testes simulam o modelo, inclusive respostas com comissão e link inventados. Teste com o binding real após o deploy.
+- A recuperação (RAG) usa busca textual FTS5 e filtros sobre o catálogo, sem vetores; funciona bem para nomes e atributos, menos para perguntas muito abstratas.
+- Os limites usam tokens estimados (4 caracteres por token), não o consumo medido pela Cloudflare, e não há valor em dinheiro.
+- A conferência checa números com unidade e links; afirmações sem número (ex.: "aceita brasileiros") dependem do prompt e do contexto.
+- O histórico de conversa fica só no navegador; nada é guardado no servidor além de contagens e cache por usuário.
+- Para testes, o `vitest.config.ts` gera `wrangler.vitest.toml` sem o `[ai]` (o binding exige sessão remota); está no `.gitignore`.
+
 ## Fase 4 — Gestão do afiliado (0.4.0)
 
 ### Implementado

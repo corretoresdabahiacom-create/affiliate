@@ -9,6 +9,10 @@ binding = "ASSETS"
 not_found_handling = "single-page-application"
 run_worker_first = ["/api/*", "/r/*"]
 
+# Workers AI: plano gratuito, sem cartão. Cobertura e limites: docs/AI.md.
+[ai]
+binding = "AI"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "affiliate-intelligence"

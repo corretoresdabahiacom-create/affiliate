@@ -30,7 +30,7 @@ export async function loadConfig(db: D1Database): Promise<ScoringConfig> {
   }
 }
 
-async function loadProfile(db: D1Database, userId: string): Promise<ProfileLike | null> {
+export async function loadProfile(db: D1Database, userId: string): Promise<ProfileLike | null> {
   const r = await db
     .prepare("SELECT country, niches, channels, has_website, wants_recurring, accepts_paid_traffic FROM user_profiles WHERE user_id = ?")
     .bind(userId)
@@ -53,7 +53,7 @@ async function officialCounts(db: D1Database): Promise<Map<string, number>> {
   return new Map(results.map((r) => [r.program_id, r.n]));
 }
 
-const scoreAll = (rows: Row[], ctx: { profile: ProfileLike | null; cfg: ScoringConfig; counts: Map<string, number>; stale: number }) => {
+export const scoreAll = (rows: Row[], ctx: { profile: ProfileLike | null; cfg: ScoringConfig; counts: Map<string, number>; stale: number }) => {
   const now = Date.now();
   return rows.map((r) => {
     const program = toProgram(r, ctx.stale, now);
@@ -66,7 +66,7 @@ const scoreAll = (rows: Row[], ctx: { profile: ProfileLike | null; cfg: ScoringC
   });
 };
 
-async function context(db: D1Database, userId: string) {
+export async function scoringContext(db: D1Database, userId: string) {
   const [cfg, profile, counts, stale] = await Promise.all([loadConfig(db), loadProfile(db, userId), officialCounts(db), staleDays(db)]);
   return { cfg, profile, counts, stale };
 }
@@ -76,7 +76,7 @@ intel.get("/config", async (c) => c.json({ config: await loadConfig(c.env.DB) })
 intel.get("/programs/:id/score", async (c) => {
   const row = await c.env.DB.prepare(`${PROGRAM_SELECT} WHERE p.id = ?`).bind(c.req.param("id")).first<Row>();
   if (!row) return c.json({ error: "not_found" }, 404);
-  const ctx = await context(c.env.DB, c.get("user").id);
+  const ctx = await scoringContext(c.env.DB, c.get("user").id);
   const [r] = scoreAll([row], ctx);
   return c.json({ score: r!.score, profileMissing: !ctx.profile?.country });
 });
@@ -87,7 +87,7 @@ intel.get("/compare", async (c) => {
   const { results } = await c.env.DB.prepare(`${PROGRAM_SELECT} WHERE p.id IN (${ids.map(() => "?").join(",")})`)
     .bind(...ids)
     .all<Row>();
-  const ctx = await context(c.env.DB, c.get("user").id);
+  const ctx = await scoringContext(c.env.DB, c.get("user").id);
   const byId = new Map(scoreAll(results, ctx).map((x) => [x.program.id, x]));
   // Mantém a ordem pedida e ignora ids inexistentes.
   const items = ids.map((id) => byId.get(id)).filter(Boolean);
@@ -97,7 +97,7 @@ intel.get("/compare", async (c) => {
 
 intel.get("/recommendations", async (c) => {
   const user = c.get("user");
-  const ctx = await context(c.env.DB, user.id);
+  const ctx = await scoringContext(c.env.DB, user.id);
   const { results } = await c.env.DB.prepare(`${PROGRAM_SELECT} WHERE p.lifecycle_status = 'active' ORDER BY p.updated_at DESC LIMIT 300`).all<Row>();
   const all = scoreAll(results, ctx);
   const byScore = (a: (typeof all)[number], b: (typeof all)[number]) =>

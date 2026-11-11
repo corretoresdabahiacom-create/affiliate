@@ -210,6 +210,26 @@ export interface OpsDashboard {
   nextActions: { id: string; programId: string; programName: string; nextAction: string | null; at: number }[];
 }
 
+// ---------- Fase 5: IA ----------
+export type AiMode = "llm" | "cached" | "facts_only";
+export interface AiGenerated { answer: string | null; mode: AiMode; reason: string | null; grounding: { ok: boolean; ungroundedNumbers: string[]; ungroundedUrls: string[] } | null }
+export interface AiCitation { programId: string; name: string; sourceUrls: string[] }
+export interface AiChat extends AiGenerated { citations: AiCitation[] }
+export interface AiStatus { enabled: boolean; modelAvailable: boolean; limit: string | null; usedToday: number; tokensToday: number; dailyRequests: number; dailyTokens: number }
+export interface AiConfig {
+  enabled: boolean; model: string; dailyRequestsPerUser: number; dailyTokensPerUser: number; monthlyRequestsGlobal: number;
+  maxQuestionChars: number; maxContextPrograms: number; maxOutputTokens: number; cacheTtlHours: number;
+}
+export interface FitCheck { id: string; status: "ok" | "blocked" | "attention" | "unknown"; field: string }
+export interface AiAnalysis {
+  score: { attractiveness: { score: number; band: string }; quality: { score: number } };
+  confirmedFields: string[]; missingFields: string[]; verification: string; lifecycleStatus: string;
+  narrative: AiGenerated; citations: AiCitation[]; note: string;
+}
+export interface AiStrategy { fit: FitCheck[]; narrative: AiGenerated; citations: AiCitation[]; suggestionOnly: true }
+export interface AiSearch { interpreted: Record<string, string>; onlyConfirmed: true; items: { id: string; name: string; advertiser: { name: string }; segment: string }[] }
+export interface AiUsageAdmin { totals: { requests: number; llm: number; cached: number; inTok: number; outTok: number; discarded: number; users: number }; byDay: { day: string; n: number; tokens: number }[] }
+
 export interface AlertItem {
   id: string;
   category: AlertCategory;
@@ -289,4 +309,12 @@ export const api = {
     request<ImportResult>("POST", "/api/ops/commissions/import", { programId, csv, dryRun }),
   reconciliation: (programId: string) => request<Reconciliation>("GET", `/api/ops/reconciliation?programId=${programId}`),
   opsDashboard: () => request<OpsDashboard>("GET", "/api/ops/dashboard"),
+  aiStatus: () => request<AiStatus>("GET", "/api/ai/status"),
+  aiChat: (message: string, locale: string, programId?: string) => request<AiChat>("POST", "/api/ai/chat", { message, locale, programId: programId ?? null }),
+  aiSearch: (q: string) => request<AiSearch>("GET", `/api/ai/search?q=${encodeURIComponent(q)}`),
+  aiAnalysis: (id: string, locale: string) => request<AiAnalysis>("POST", `/api/ai/programs/${id}/analysis`, { locale }),
+  aiStrategy: (id: string, locale: string) => request<AiStrategy>("POST", `/api/ai/programs/${id}/strategy`, { locale }),
+  aiAdminConfig: () => request<{ config: AiConfig; modelAvailable: boolean }>("GET", "/api/ai/admin/config"),
+  aiAdminSave: (config: AiConfig) => request<{ ok: true }>("PUT", "/api/ai/admin/config", config),
+  aiAdminUsage: () => request<AiUsageAdmin>("GET", "/api/ai/admin/usage"),
 };

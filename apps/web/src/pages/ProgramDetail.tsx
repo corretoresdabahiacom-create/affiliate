@@ -5,6 +5,7 @@ import { api, ApiError, type ProgramDetail as Detail, type Tri } from "../api";
 import { useAuth } from "../auth";
 import { SafeLink, TriBadge, VerificationBadge, formatDate } from "../components/badges";
 import { errorMessage, fieldLabel } from "../components/errors";
+import { AiPanel } from "../components/AiPanel";
 import { ScoreCard } from "../components/ScoreCard";
 import { useI18n, type MessageKey } from "../i18n";
 
@@ -82,6 +83,7 @@ export function ProgramDetail() {
       </header>
 
       <ScoreCard programId={p.id} />
+      <AiPanel programId={p.id} />
       <div className="flex flex-wrap items-center gap-2">
         <Link to={`/simulator?program=${p.id}`} className="btn-secondary">{t("sim.simulateWith")}</Link>
         <TrackButton programId={p.id} />

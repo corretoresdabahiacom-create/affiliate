@@ -19,6 +19,7 @@ import { MyPrograms } from "./pages/MyPrograms";
 import { Links } from "./pages/Links";
 import { Campaigns } from "./pages/Campaigns";
 import { Commissions } from "./pages/Commissions";
+import { Assistant } from "./pages/Assistant";
 
 /** Exige sessão; quem ainda não fez o onboarding é levado a ele. */
 function Protected({ children, requireOnboarded = true }: { children: React.ReactNode; requireOnboarded?: boolean }) {
@@ -51,6 +52,7 @@ export function App() {
         <Route path="/links" element={<Protected><Links /></Protected>} />
         <Route path="/campaigns" element={<Protected><Campaigns /></Protected>} />
         <Route path="/commissions" element={<Protected><Commissions /></Protected>} />
+        <Route path="/assistant" element={<Protected><Assistant /></Protected>} />
         <Route path="/recommendations" element={<Protected><Recommendations /></Protected>} />
         <Route path="/compare" element={<Protected><Compare /></Protected>} />
         <Route path="/simulator" element={<Protected><Simulator /></Protected>} />

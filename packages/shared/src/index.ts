@@ -65,3 +65,4 @@ export * from "./catalog";
 export * from "./intel";
 export * from "./simulator";
 export * from "./ops";
+export * from "./ai";

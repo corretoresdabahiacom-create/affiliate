@@ -1,6 +1,6 @@
 # Affiliate Intelligence AI
 
-Plataforma SaaS de descoberta, inteligência e gestão de marketing de afiliados. Este repositório está na **Fase 4 (gestão do afiliado)**; a IA e as integrações vêm nas fases seguintes (veja o roadmap abaixo).
+Plataforma SaaS de descoberta, inteligência e gestão de marketing de afiliados. Este repositório está na **Fase 5 (inteligência artificial)**; o estúdio de conteúdo, as integrações, o analytics e a produção vêm nas fases seguintes (veja o roadmap abaixo).
 
 ## O que já funciona (Fase 1)
 
@@ -37,6 +37,13 @@ Plataforma SaaS de descoberta, inteligência e gestão de marketing de afiliados
 - **Campanhas** por canal (incluindo tráfego pago, que consulta a regra do programa antes).
 - **Comissões**: estimada → pendente → aprovada → paga, com reembolso, cancelamento, chargeback e ajuste; importação CSV do relatório da rede e conciliação.
 - **Painel** com indicadores separados por moeda, status e origem.
+
+## O que já funciona (Fase 5)
+
+- **Assistente de IA** ancorado no catálogo: só recebe os fatos do sistema, cada um com o estado da fonte (confirmado por fonte oficial, sem fonte, ou DESCONHECIDO). Se um dado não está confirmado, a resposta diz isso.
+- **Conferência automática**: número com unidade (%, dias, moeda) ou link que não esteja nas fontes derruba a resposta; o usuário vê só os dados do sistema.
+- Análise de programa (confirmado x faltando, calculado pelo sistema + texto do modelo), estratégia (compatibilidade com o perfil calculada sem IA + sugestão do modelo) e pesquisa em linguagem natural que só devolve programas com o dado confirmado.
+- **Controle de custos**: limites por usuário (perguntas e tokens estimados por dia) e global por mês, cache, chave geral para desligar, uso agregado para o administrador. Sem modelo ou no limite, o recurso continua com dados do sistema. Veja [docs/AI.md](docs/AI.md).
 
 ## Estrutura
 
@@ -83,7 +90,11 @@ Limites do plano gratuito a ter em mente: 100.000 requisições por dia, 10 ms d
 | 2 | Catálogo de programas com fontes e verificação | **Concluída** |
 | 3 | Pontuação, simulador, comparação, recomendações, alertas | **Concluída** |
 | 4 | Gestão do afiliado: programas, links, campanhas, comissões | **Concluída** |
-| 5 a 9 | IA, conteúdo, integrações, analytics, produção | Planejadas |
+| 5 | Inteligência artificial: assistente, análise, estratégia, pesquisa, RAG, custos | **Concluída** |
+| 6 | Estúdio de conteúdo | Próxima |
+| 7 | Integrações e automações (APIs oficiais, n8n, e-mail, notificações, publicação) | Planejada |
+| 8 | Analytics e monetização (cliques, conversões, rentabilidade, relatórios) | Planejada |
+| 9 | Segurança e produção (auditoria, backup, performance) | Planejada |
 
 ## Princípios do produto
 
