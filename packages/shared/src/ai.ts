@@ -8,7 +8,7 @@ import { isOfficialSource, type SourceType } from "./catalog";
  * - a IA não altera o catálogo: só sugere, e quem decide é uma pessoa.
  */
 
-export const AI_KINDS = ["chat", "analysis", "strategy"] as const;
+export const AI_KINDS = ["chat", "analysis", "strategy", "ad"] as const;
 export type AiKind = (typeof AI_KINDS)[number];
 
 export const aiConfigSchema = z.object({
@@ -222,7 +222,9 @@ export function systemPrompt(locale: string, kind: AiKind): string {
       ? "Write a short analysis of the program: strengths, risks and what is still unknown."
       : kind === "strategy"
         ? "Suggest a practical promotion strategy for this user and program, based only on the confirmed facts and the compatibility checks."
-        : "Answer the user's question about affiliate programs.";
+        : kind === "ad"
+          ? "Write a short, honest promotional description (max 60 words, plain text, no title, no hashtags, no emojis) introducing the program to an audience. Use only what the context says about the program; do not mention commissions, payouts or earnings."
+          : "Answer the user's question about affiliate programs.";
   return [
     "You are the assistant of Affiliate Intelligence, a platform for finding and managing affiliate programs.",
     task,

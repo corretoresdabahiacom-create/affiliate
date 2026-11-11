@@ -45,6 +45,13 @@ Plataforma SaaS de descoberta, inteligência e gestão de marketing de afiliados
 - Análise de programa (confirmado x faltando, calculado pelo sistema + texto do modelo), estratégia (compatibilidade com o perfil calculada sem IA + sugestão do modelo) e pesquisa em linguagem natural que só devolve programas com o dado confirmado.
 - **Controle de custos**: limites por usuário (perguntas e tokens estimados por dia) e global por mês, cache, chave geral para desligar, uso agregado para o administrador. Sem modelo ou no limite, o recurso continua com dados do sistema. Veja [docs/AI.md](docs/AI.md).
 
+## Estúdio (Fase 6, primeira parte)
+
+Inspirado no anúncio de uma plataforma de dropshipping (calendário de produtos sazonais + criação de anúncio em um clique), adaptado às regras deste projeto. Detalhes em [docs/STUDIO.md](docs/STUDIO.md).
+
+- **Calendário sazonal**: nichos por mês cadastrados por editores. Percentual ou métrica só é publicado com a fonte citada; sem dado cadastrado, a tela diz que está vazio. Nada vem pré-carregado.
+- **Rascunhos de divulgação em lote** (até 10 programas): título e descrição a partir do catálogo, com descrição opcional da IA conferida contra o catálogo, aviso de afiliado no idioma escolhido e checagem do canal (blog, YouTube, Instagram, TikTok, e-mail). Você revisa, aprova e copia. Nada é publicado em nenhum canal.
+
 ## Estrutura
 
 ```text
@@ -91,7 +98,7 @@ Limites do plano gratuito a ter em mente: 100.000 requisições por dia, 10 ms d
 | 3 | Pontuação, simulador, comparação, recomendações, alertas | **Concluída** |
 | 4 | Gestão do afiliado: programas, links, campanhas, comissões | **Concluída** |
 | 5 | Inteligência artificial: assistente, análise, estratégia, pesquisa, RAG, custos | **Concluída** |
-| 6 | Estúdio de conteúdo | Próxima |
+| 6 | Estúdio de conteúdo | **Em andamento**: calendário sazonal e rascunhos de divulgação prontos (0.6.0) |
 | 7 | Integrações e automações (APIs oficiais, n8n, e-mail, notificações, publicação) | Planejada |
 | 8 | Analytics e monetização (cliques, conversões, rentabilidade, relatórios) | Planejada |
 | 9 | Segurança e produção (auditoria, backup, performance) | Planejada |

@@ -245,6 +245,17 @@ export interface AlertItem {
   unread: boolean;
 }
 
+export interface SeasonalEntry {
+  id: string; month: number; niche: string; note: string | null; metricLabel: string | null; metricValue: string | null;
+  sourceUrl: string | null; status: "draft" | "published"; programs: Array<{ id: string; name: string; lifecycleStatus: string }>; updatedAt: number;
+}
+export interface AdDraft {
+  id: string; programId: string | null; programName: string; channel: string; locale: string; title: string; description: string; disclosure: string;
+  userLink: string | null; officialUrl: string | null; channelField: string | null; channelCheck: "ok" | "unverified" | "blocked" | "none";
+  textSource: "catalog" | "model" | "user"; status: "draft" | "approved" | "discarded"; issues: string[]; createdAt: number; updatedAt: number;
+}
+export interface AdGenerated { items: AdDraft[]; skipped: Array<{ programId: string; reason: string }>; ai: Array<{ programId: string; mode: string; reason: string | null }>; publishedAnywhere: false }
+
 export const api = {
   me: () => request<Me>("GET", "/api/me"),
   requestLogin: (email: string, locale: string) =>
@@ -317,4 +328,15 @@ export const api = {
   aiAdminConfig: () => request<{ config: AiConfig; modelAvailable: boolean }>("GET", "/api/ai/admin/config"),
   aiAdminSave: (config: AiConfig) => request<{ ok: true }>("PUT", "/api/ai/admin/config", config),
   aiAdminUsage: () => request<AiUsageAdmin>("GET", "/api/ai/admin/usage"),
+  seasonal: (month: number) => request<{ items: SeasonalEntry[] }>("GET", `/api/studio/seasonal?month=${month}`),
+  seasonalManage: () => request<{ items: SeasonalEntry[] }>("GET", "/api/studio/seasonal/manage"),
+  seasonalCreate: (body: Record<string, unknown>) => request<{ ok: true; id: string }>("POST", "/api/studio/seasonal", body),
+  seasonalPatch: (id: string, body: Record<string, unknown>) => request<{ ok: true }>("PATCH", `/api/studio/seasonal/${id}`, body),
+  seasonalDelete: (id: string) => request<{ ok: true }>("DELETE", `/api/studio/seasonal/${id}`),
+  adGenerate: (body: Record<string, unknown>) => request<AdGenerated>("POST", "/api/studio/ads/generate", body),
+  ads: () => request<{ items: AdDraft[] }>("GET", "/api/studio/ads"),
+  adPatch: (id: string, body: Record<string, unknown>) => request<{ item: AdDraft }>("PATCH", `/api/studio/ads/${id}`, body),
+  adStatus: (id: string, status: string, acknowledgeUnverified = false) => request<{ item: AdDraft }>("POST", `/api/studio/ads/${id}/status`, { status, acknowledgeUnverified }),
+  adExport: (id: string) => request<{ text: string; published: false }>("GET", `/api/studio/ads/${id}/export`),
+  adDelete: (id: string) => request<{ ok: true }>("DELETE", `/api/studio/ads/${id}`),
 };

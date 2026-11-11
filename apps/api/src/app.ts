@@ -20,6 +20,7 @@ import { intel } from "./intel";
 import { allow } from "./ratelimit";
 import { ops } from "./ops";
 import { ai } from "./ai";
+import { studio } from "./studio";
 import { isBotUserAgent } from "@ai/shared";
 import type { AppBindings, Env, SessionUser } from "./types";
 
@@ -264,10 +265,10 @@ app.put("/api/me/profile", requireUser, async (c) => {
 // LGPD/GDPR: exportação e exclusão da própria conta.
 async function exportOps(db: D1Database, userId: string) {
   const q = async (table: string) => (await db.prepare(`SELECT * FROM ${table} WHERE user_id = ?`).bind(userId).all()).results;
-  const [programs, programHistory, programDocs, links, linkClicks, campaigns, commissions, adjustments] = await Promise.all(
-    ["user_programs", "user_program_history", "user_program_docs", "affiliate_links", "link_clicks", "campaigns", "commissions", "commission_adjustments"].map(q),
+  const [programs, programHistory, programDocs, links, linkClicks, campaigns, commissions, adjustments, adDrafts] = await Promise.all(
+    ["user_programs", "user_program_history", "user_program_docs", "affiliate_links", "link_clicks", "campaigns", "commissions", "commission_adjustments", "ad_drafts"].map(q),
   );
-  return { programs, programHistory, programDocs, links, linkClicks, campaigns, commissions, adjustments };
+  return { programs, programHistory, programDocs, links, linkClicks, campaigns, commissions, adjustments, adDrafts };
 }
 
 app.get("/api/me/export", requireUser, async (c) => {
@@ -383,6 +384,7 @@ app.route("/api/catalog", catalog);
 app.route("/api/intel", intel);
 app.route("/api/ops", ops);
 app.route("/api/ai", ai);
+app.route("/api/studio", studio);
 
 // ---------- Redirecionamento próprio (/r/:code) ----------
 // Só funciona para links "own_redirect" de programas que CONFIRMARAM permitir redirecionamento.

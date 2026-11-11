@@ -91,7 +91,7 @@ export interface Generated {
 }
 
 /** Texto do modelo, sempre ancorado: sem contexto não chama; resposta com número/link fora do contexto é descartada. */
-async function generate(
+export async function generate(
   c: any,
   kind: AiKind,
   question: string,
@@ -153,7 +153,7 @@ async function sourcesFor(db: D1Database, ids: string[]): Promise<Map<string, Fa
   return m;
 }
 
-async function docsFor(db: D1Database, rows: Row[], stale: number): Promise<{ docs: FactDoc[]; programs: ReturnType<typeof toProgram>[] }> {
+export async function docsFor(db: D1Database, rows: Row[], stale: number): Promise<{ docs: FactDoc[]; programs: ReturnType<typeof toProgram>[] }> {
   const t = now();
   const programs = rows.map((r) => toProgram(r, stale, t));
   const src = await sourcesFor(db, programs.map((p) => p.id));

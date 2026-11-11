@@ -19,6 +19,8 @@ import { MyPrograms } from "./pages/MyPrograms";
 import { Links } from "./pages/Links";
 import { Campaigns } from "./pages/Campaigns";
 import { Commissions } from "./pages/Commissions";
+import { Seasonal } from "./pages/Seasonal";
+import { AdStudio } from "./pages/AdStudio";
 import { Assistant } from "./pages/Assistant";
 
 /** Exige sessão; quem ainda não fez o onboarding é levado a ele. */
@@ -52,6 +54,8 @@ export function App() {
         <Route path="/links" element={<Protected><Links /></Protected>} />
         <Route path="/campaigns" element={<Protected><Campaigns /></Protected>} />
         <Route path="/commissions" element={<Protected><Commissions /></Protected>} />
+        <Route path="/seasonal" element={<Protected><Seasonal /></Protected>} />
+        <Route path="/studio" element={<Protected><AdStudio /></Protected>} />
         <Route path="/assistant" element={<Protected><Assistant /></Protected>} />
         <Route path="/recommendations" element={<Protected><Recommendations /></Protected>} />
         <Route path="/compare" element={<Protected><Compare /></Protected>} />

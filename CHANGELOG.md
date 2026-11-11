@@ -1,5 +1,34 @@
 # Changelog
 
+## Fase 6 (parte 1) — Estúdio: calendário sazonal e rascunhos (0.6.0)
+
+Origem: vídeo de anúncio de uma plataforma de dropshipping (produtos sazonais, "quero anunciar esse produto", montagem de loja automática). Foi adaptado ao SaaS de afiliados, sem copiar números de marketing, marca nem integrações de terceiros.
+
+### Implementado
+
+- Migration `0006_studio.sql`: `seasonal_entries`, `seasonal_entry_programs`, `ad_drafts` (rascunhos apagados com a conta e incluídos em `/api/me/export`).
+- API `/api/studio`: calendário (leitura para todos, escrita só para editor/admin, com auditoria) e rascunhos (gerar em lote até 10, editar, aprovar, descartar, exportar texto, excluir).
+- Regras: métrica sazonal exige rótulo, valor e link da fonte; programas fora do ar são ignorados; canal que o programa não aceita (`no`) bloqueia a aprovação; canal não verificado exige confirmação do usuário; texto com promessa de ganho ou com número/link fora do catálogo não é aprovado; editar um rascunho aprovado reabre a aprovação; só aprovado pode ser copiado; a divulgação de afiliado é incluída no texto.
+- IA (opcional): só reescreve a descrição, conferida contra o catálogo; se falhar na conferência ou prometer ganho, vale o texto do catálogo. Conta nos mesmos limites de custo da Fase 5.
+- Telas `/seasonal` e `/studio` em PT-BR, EN-US e ES.
+
+### Testes
+
+| Pacote | Testes | Resultado |
+| --- | --- | --- |
+| `@ai/shared` | 79 | passaram |
+| `@ai/api` | 119 | passaram |
+| `@ai/web` | 53 | passaram |
+
+Também: `tsc` limpo, `vite build` e teste local com a migration 0006 aplicada.
+
+### Fora do escopo (de propósito)
+
+- Integração com WeDrop, Shopee ou outro marketplace e publicação automática de anúncios: exigem API e credenciais de terceiros, e o projeto não publica sem aprovação humana.
+- Catálogo de produtos de terceiros, preços de revenda e "% de crescimento" prontos: não existem dados verificados para isso.
+- O calendário começa vazio. Alguém da equipe editorial precisa cadastrar as entradas com fontes.
+- O restante da Fase 6 (por exemplo, outros formatos de conteúdo) continua pendente.
+
 ## Fase 5 — Inteligência artificial (0.5.0)
 
 ### Implementado
