@@ -102,7 +102,7 @@ Limites do plano gratuito a ter em mente: 100.000 requisições por dia, 10 ms d
 | 3 | Pontuação, simulador, comparação, recomendações, alertas | **Concluída** |
 | 4 | Gestão do afiliado: programas, links, campanhas, comissões | **Concluída** |
 | 5 | Inteligência artificial: assistente, análise, estratégia, pesquisa, RAG, custos | **Concluída** |
-| 6 | Estúdio de conteúdo | **Em andamento**: calendário sazonal, rascunhos de divulgação (0.6.0), integração Shopee/fornecedor e montagem de loja (0.7.0) |
+| 6 | Estúdio de conteúdo | **Em andamento**: calendário sazonal, rascunhos de divulgação (0.6.0), integração Shopee/fornecedor e montagem de loja (0.7.0), variações, atributos, edição de publicados, sincronização, pedidos e rastreio (0.8.0) |
 | 7 | Integrações e automações (APIs oficiais, n8n, e-mail, notificações, publicação) | Planejada |
 | 8 | Analytics e monetização (cliques, conversões, rentabilidade, relatórios) | Planejada |
 | 9 | Segurança e produção (auditoria, backup, performance) | Planejada |

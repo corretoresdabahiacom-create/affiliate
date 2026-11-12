@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { MAX_STORE_BATCH } from "@ai/shared";
-import { api, type Connection, type Listing, type PublishResult, type SupplierProduct } from "../api";
+import { api, type AttributeValue, type Connection, type Listing, type PublishResult, type SupplierProduct, type SyncProposal } from "../api";
 import { errorMessage } from "../components/errors";
 import { useI18n, type MessageKey } from "../i18n";
 
@@ -9,45 +9,117 @@ type Msg = { ok: boolean; text: string } | null;
 const Note = ({ m }: { m: Msg }) => (m ? <p role={m.ok ? "status" : "alert"} className={`text-sm ${m.ok ? "text-emerald-700" : "text-red-600"}`}>{m.text}</p> : null);
 const money = (n: number, cur: string, locale: string) => new Intl.NumberFormat(locale, { style: "currency", currency: cur }).format(n);
 
+const isLiveEdit = (l: Listing) => l.status === "published";
+
+function Attributes({ l, value, onChange }: { l: Listing; value: AttributeValue[]; onChange: (v: AttributeValue[]) => void }) {
+  const { t } = useI18n();
+  const schema = l.attributeSchema ?? [];
+  if (schema.length === 0) return null;
+  const set = (id: number, v: AttributeValue | null) => onChange([...value.filter((a) => a.attributeId !== id), ...(v ? [v] : [])]);
+  return (
+    <fieldset className="space-y-2 rounded-md bg-slate-50 p-2">
+      <legend className="label">{t("store.attrs")}</legend>
+      <p className="text-xs text-slate-500">{t("store.attrs.help")}</p>
+      {schema.map((a) => {
+        const cur = value.find((x) => x.attributeId === a.id);
+        const id = `at-${l.id}-${a.id}`;
+        return (
+          <div key={a.id} className="grid gap-1 sm:grid-cols-2">
+            <label className="label" htmlFor={id}>{a.name}{a.mandatory ? " *" : ""}</label>
+            {a.values.length > 0 ? (
+              <select id={id} className="input" value={cur?.valueId ?? ""} onChange={(e) => set(a.id, e.target.value ? { attributeId: a.id, valueId: Number(e.target.value) } : null)}>
+                <option value="">{t("store.attrs.pick")}</option>
+                {a.values.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+              </select>
+            ) : (
+              <input id={id} className="input" maxLength={200} placeholder={t("store.attrs.custom")} value={cur?.customValue ?? ""} onChange={(e) => set(a.id, e.target.value.trim() ? { attributeId: a.id, customValue: e.target.value } : null)} />
+            )}
+          </div>
+        );
+      })}
+    </fieldset>
+  );
+}
+
 function ListingCard({ l, checked, onCheck, onChange }: { l: Listing; checked: boolean; onCheck: () => void; onChange: () => void }) {
   const { t, locale } = useI18n();
   const [title, setTitle] = useState(l.title);
   const [description, setDescription] = useState(l.description);
   const [price, setPrice] = useState(String(l.price));
+  const [mPrices, setMPrices] = useState<string[]>((l.variants?.models ?? []).map((m) => String(m.price ?? "")));
+  const [mStocks, setMStocks] = useState<string[]>((l.variants?.models ?? []).map((m) => String(m.stock ?? "")));
+  const [attrs, setAttrs] = useState<AttributeValue[]>(l.attributes ?? []);
   const [msg, setMsg] = useState<Msg>(null);
-  const locked = l.status === "published" || l.status === "publishing" || l.status === "discarded";
-  const dirty = title !== l.title || description !== l.description || Number(price) !== l.price;
+  const live = isLiveEdit(l);
+  const locked = l.status === "publishing" || l.status === "discarded";
+  const hasV = !!l.variants;
+  const attrsDirty = !live && JSON.stringify([...attrs].sort((a, b) => a.attributeId - b.attributeId)) !== JSON.stringify([...(l.attributes ?? [])].sort((a, b) => a.attributeId - b.attributeId));
+  const variantsDirty = hasV && l.variants!.models.some((m, i) => Number(mPrices[i]) !== (m.price ?? 0) || Number(mStocks[i]) !== (m.stock ?? 0));
+  const dirty = title !== l.title || description !== l.description || (!hasV && Number(price) !== l.price) || variantsDirty || attrsDirty;
   const save = async () => {
     setMsg(null);
-    try { await api.listingPatch(l.id, { title, description, price: Number(price) }); onChange(); } catch (e) { setMsg({ ok: false, text: errorMessage(e, t) }); }
+    try {
+      await api.listingPatch(l.id, {
+        title, description,
+        ...(hasV ? (variantsDirty ? { modelPrices: mPrices.map(Number), modelStocks: mStocks.map(Number) } : {}) : { price: Number(price) }),
+        ...(attrsDirty ? { attributes: attrs } : {}),
+      });
+      onChange();
+    } catch (e) { setMsg({ ok: false, text: errorMessage(e, t) }); }
   };
   const discard = async () => { try { await api.listingStatus(l.id, "discarded"); onChange(); } catch (e) { setMsg({ ok: false, text: errorMessage(e, t) }); } };
+  const selectable = !locked && (!live || l.updateStatus === "dirty");
   return (
     <li className="card space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <label className="flex items-center gap-2 text-sm font-medium">
-          {!locked && <input type="checkbox" aria-label={l.productName} checked={checked} onChange={onCheck} />}
+          {selectable && <input type="checkbox" aria-label={l.productName} checked={checked} onChange={onCheck} />}
           {l.productName}
         </label>
-        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs">{t(`store.status.${l.status}` as MessageKey)}</span>
+        <span className="flex gap-1">
+          {live && l.updateStatus && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">{t(`store.update.${l.updateStatus}` as MessageKey)}</span>}
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs">{t(`store.status.${l.status}` as MessageKey)}</span>
+        </span>
       </div>
       <p className="text-xs text-slate-500">{t(`store.src.${l.textSource}` as MessageKey)} · {t("store.cost")} {money(l.costPrice, l.currency, locale)}</p>
+      {live && <p className="text-xs text-slate-500">{t("store.update.help")}</p>}
       <div className="grid gap-2 sm:grid-cols-3">
         <div className="sm:col-span-2">
           <label className="label" htmlFor={`ti-${l.id}`}>{t("store.titleField")}</label>
           <input id={`ti-${l.id}`} className="input" maxLength={120} value={title} disabled={locked} onChange={(e) => setTitle(e.target.value)} />
         </div>
-        <div>
-          <label className="label" htmlFor={`pr-${l.id}`}>{t("store.price")}</label>
-          <input id={`pr-${l.id}`} className="input" type="number" step="0.01" min="0" value={price} disabled={locked} onChange={(e) => setPrice(e.target.value)} />
-        </div>
+        {!hasV && (
+          <div>
+            <label className="label" htmlFor={`pr-${l.id}`}>{t("store.price")}</label>
+            <input id={`pr-${l.id}`} className="input" type="number" step="0.01" min="0" value={price} disabled={locked} onChange={(e) => setPrice(e.target.value)} />
+          </div>
+        )}
       </div>
       <div>
         <label className="label" htmlFor={`de-${l.id}`}>{t("store.descField")}</label>
         <textarea id={`de-${l.id}`} className="input" rows={3} maxLength={3000} value={description} disabled={locked} onChange={(e) => setDescription(e.target.value)} />
       </div>
+      {l.variants && (
+        <div className="overflow-x-auto">
+          <h4 className="text-sm font-medium">{t("store.variants")}: {l.variants.tiers.map((x) => x.name).join(" / ")}</h4>
+          <table className="w-full text-left text-sm">
+            <thead><tr><th className="pr-2">{t("store.variant.model")}</th><th className="pr-2">{t("store.variant.cost")}</th><th className="pr-2">{t("store.variant.price")}</th><th>{t("store.variant.stock")}</th></tr></thead>
+            <tbody>
+              {l.variants.models.map((m, i) => (
+                <tr key={m.tierIndex.join("-")}>
+                  <td className="pr-2">{m.tierIndex.map((ix, ti) => l.variants!.tiers[ti]!.options[ix]).join(" / ")}{m.sku ? <span className="text-xs text-slate-500"> ({m.sku})</span> : null}</td>
+                  <td className="pr-2">{money(m.costPrice, l.currency, locale)}</td>
+                  <td className="pr-2"><input aria-label={`${t("store.variant.price")} ${m.tierIndex.join("-")}`} className="input w-24" type="number" step="0.01" min="0" disabled={locked} value={mPrices[i] ?? ""} onChange={(e) => setMPrices((a) => a.map((v, j) => (j === i ? e.target.value : v)))} /></td>
+                  <td><input aria-label={`${t("store.variant.stock")} ${m.tierIndex.join("-")}`} className="input w-20" type="number" step="1" min="0" disabled={locked} value={mStocks[i] ?? ""} onChange={(e) => setMStocks((a) => a.map((v, j) => (j === i ? e.target.value : v)))} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {!live && !locked && <Attributes l={l} value={attrs} onChange={setAttrs} />}
       <p className="text-xs text-slate-600">{t("store.margin", { m: money(l.margin.amount, l.currency, locale), p: l.margin.percentOfPrice })}</p>
-      {l.status !== "published" && l.issues.length > 0 && (
+      {(!live || l.updateStatus) && l.issues.length > 0 && (
         <ul className="flex flex-wrap gap-1">{l.issues.map((i) => <li key={i} className="rounded bg-amber-50 px-2 py-0.5 text-xs text-amber-900">{t(`store.issue.${i}` as MessageKey)}</li>)}</ul>
       )}
       {l.lastError && <p role="alert" className="text-sm text-red-600">{l.lastError}</p>}
@@ -55,8 +127,8 @@ function ListingCard({ l, checked, onCheck, onChange }: { l: Listing; checked: b
       <Note m={msg} />
       {!locked && (
         <div className="flex gap-2">
-          {dirty && <button className="btn-secondary" onClick={save}>{t("store.save")}</button>}
-          <button className="btn-secondary" onClick={discard}>{t("store.discard")}</button>
+          {dirty && <button className="btn-secondary" onClick={save}>{live ? t("store.saveLive") : t("store.save")}</button>}
+          {!live && <button className="btn-secondary" onClick={discard}>{t("store.discard")}</button>}
         </div>
       )}
     </li>
@@ -90,6 +162,11 @@ export function StoreBuilder() {
   const [authMsg, setAuthMsg] = useState<Msg>(null);
   const [results, setResults] = useState<PublishResult[] | null>(null);
   const [pubBusy, setPubBusy] = useState(false);
+  // sincronização com o fornecedor
+  const [syncItems, setSyncItems] = useState<Array<{ listingId: string; productName: string; proposal: SyncProposal }> | null>(null);
+  const [syncChecked, setSyncChecked] = useState(0);
+  const [syncSel, setSyncSel] = useState<string[]>([]);
+  const [syncMsg, setSyncMsg] = useState<Msg>(null);
 
   const shops = conns.filter((c) => c.provider === "shopee" && c.status === "connected");
   useEffect(() => { api.connections().then((r) => { setConns(r.items); const s = r.items.find((c) => c.provider === "shopee" && c.status === "connected"); if (s) setShopId(s.id); }).catch(() => {}); api.supplierProducts().then((r) => setProducts(r.items)).catch(() => {}); }, []);
@@ -129,8 +206,10 @@ export function StoreBuilder() {
     } catch (e) { setBulkMsg({ ok: false, text: errorMessage(e, t) }); }
   };
 
-  const reviewable = listings.filter((l) => l.status === "draft" || l.status === "failed");
+  const pendingUpdate = (l: Listing) => l.status === "published" && l.updateStatus === "dirty";
+  const reviewable = listings.filter((l) => l.status === "draft" || l.status === "failed" || pendingUpdate(l));
   const approved = listings.filter((l) => l.status === "approved");
+  const updatesReady = listings.filter((l) => l.status === "published" && l.updateStatus === "authorized");
   const selEditable = sel.filter((id) => reviewable.some((l) => l.id === id));
   const authorize = async () => {
     setAuthMsg(null);
@@ -140,9 +219,27 @@ export function StoreBuilder() {
       setConfirm(""); setSel([]); loadListings();
     } catch (e) { setAuthMsg({ ok: false, text: errorMessage(e, t) }); }
   };
-  const publish = async () => {
+  const send = async (ids: string[]) => {
     setPubBusy(true); setResults(null);
-    try { setResults((await api.listingPublish(approved.map((l) => l.id))).results); loadListings(); } catch (e) { setAuthMsg({ ok: false, text: errorMessage(e, t) }); } finally { setPubBusy(false); }
+    try { setResults((await api.listingPublish(ids)).results); loadListings(); } catch (e) { setAuthMsg({ ok: false, text: errorMessage(e, t) }); } finally { setPubBusy(false); }
+  };
+  const publish = () => send(approved.map((l) => l.id));
+  const sendUpdates = () => send(updatesReady.map((l) => l.id));
+  const syncPreview = async () => {
+    setSyncMsg(null);
+    try {
+      const r = await api.syncPreview(shopId);
+      setSyncItems(r.items); setSyncChecked(r.checked); setSyncSel(r.items.map((i) => i.listingId));
+      if (r.items.length === 0) setSyncMsg({ ok: true, text: t("store.sync.none", { n: r.checked }) });
+    } catch (e) { setSyncMsg({ ok: false, text: errorMessage(e, t) }); }
+  };
+  const syncApply = async (kinds: Array<"stock" | "price">) => {
+    setSyncMsg(null);
+    try {
+      const r = await api.syncApply(shopId, syncSel, kinds);
+      setSyncMsg({ ok: true, text: t("store.sync.applied", { n: r.applied }) });
+      setSyncItems(null); loadListings();
+    } catch (e) { setSyncMsg({ ok: false, text: errorMessage(e, t) }); }
   };
 
   if (shops.length === 0) {
@@ -153,6 +250,7 @@ export function StoreBuilder() {
       <header>
         <h1 className="text-xl font-semibold">{t("store.title")}</h1>
         <p className="text-sm text-slate-600">{t("store.subtitle")}</p>
+        <Link className="text-sm text-indigo-700 hover:underline" to="/orders">{t("store.ordersLink")}</Link>
       </header>
 
       <section className="card space-y-3" aria-labelledby="st-prod">
@@ -228,11 +326,46 @@ export function StoreBuilder() {
           </div>
         )}
 
-        <ul className="space-y-3">{listings.map((l) => <ListingCard key={`${l.id}-${l.status}-${l.price}-${l.title}`} l={l} checked={sel.includes(l.id)} onCheck={() => toggleSel(l.id)} onChange={loadListings} />)}</ul>
+        {listings.some((l) => l.status === "published") && (
+          <div className="card space-y-2">
+            <h3 className="font-medium">{t("store.sync.title")}</h3>
+            <p className="text-xs text-slate-500">{t("store.sync.help")}</p>
+            <button className="btn-secondary" onClick={syncPreview}>{t("store.sync.preview")}</button>
+            {syncItems && syncItems.length > 0 && (
+              <>
+                <p className="text-xs text-slate-500">{syncChecked}</p>
+                <ul className="space-y-1 text-sm">
+                  {syncItems.map((i) => (
+                    <li key={i.listingId}>
+                      <label className="flex flex-wrap items-center gap-2">
+                        <input type="checkbox" aria-label={i.productName} checked={syncSel.includes(i.listingId)} onChange={() => setSyncSel((p) => (p.includes(i.listingId) ? p.filter((x) => x !== i.listingId) : [...p, i.listingId]))} />
+                        <span className="font-medium">{i.productName}</span>
+                        {i.proposal.stock && <span>{t("store.sync.stock", { from: i.proposal.stock.from ?? "—", to: i.proposal.stock.to })}</span>}
+                        {i.proposal.price && <span>{t("store.sync.price", { from: i.proposal.price.from, to: i.proposal.price.to })}</span>}
+                        {i.proposal.models?.map((m) => (
+                          <span key={m.key} className="text-xs text-slate-600">[{m.key}] {m.stock ? t("store.sync.stock", { from: m.stock.from ?? "—", to: m.stock.to }) : ""} {m.price ? t("store.sync.price", { from: m.price.from ?? "—", to: m.price.to }) : ""}</span>
+                        ))}
+                        {i.proposal.costChanged && !i.proposal.price && !i.proposal.models?.some((m) => m.price) && <span className="text-xs text-amber-800">{t("store.sync.costChanged")}</span>}
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+                <div className="flex gap-2">
+                  <button className="btn-secondary" disabled={syncSel.length === 0} onClick={() => syncApply(["stock"])}>{t("store.sync.applyStock")}</button>
+                  <button className="btn" disabled={syncSel.length === 0} onClick={() => syncApply(["stock", "price"])}>{t("store.sync.applyBoth")}</button>
+                </div>
+              </>
+            )}
+            <Note m={syncMsg} />
+          </div>
+        )}
+
+        <ul className="space-y-3">{listings.map((l) => <ListingCard key={`${l.id}-${l.status}-${l.updateStatus}-${l.price}-${l.title}-${JSON.stringify(l.variants)}-${JSON.stringify(l.attributes)}`} l={l} checked={sel.includes(l.id)} onCheck={() => toggleSel(l.id)} onChange={loadListings} />)}</ul>
 
         {reviewable.length > 0 && (
           <div className="card space-y-2">
             <h3 className="font-medium">{t("store.authTitle")}</h3>
+            {reviewable.some(pendingUpdate) && <p className="text-xs text-slate-500">{t("store.update.title")}</p>}
             <p className="text-sm text-slate-600">{t("store.selected", { n: selEditable.length })}</p>
             <div className="flex flex-wrap items-end gap-2">
               <div><label className="label" htmlFor="cc">{t("store.confirmCount", { n: selEditable.length })}</label><input id="cc" className="input w-28" inputMode="numeric" value={confirm} onChange={(e) => setConfirm(e.target.value)} /></div>
@@ -242,14 +375,15 @@ export function StoreBuilder() {
           </div>
         )}
 
-        {approved.length > 0 && (
-          <div className="card space-y-2">
-            <button className="btn" disabled={pubBusy} onClick={publish}>{pubBusy ? t("store.publishing") : t("store.publish", { n: approved.length })}</button>
+        {(approved.length > 0 || updatesReady.length > 0) && (
+          <div className="card flex flex-wrap gap-2">
+            {approved.length > 0 && <button className="btn" disabled={pubBusy} onClick={publish}>{pubBusy ? t("store.publishing") : t("store.publish", { n: approved.length })}</button>}
+            {updatesReady.length > 0 && <button className="btn" disabled={pubBusy} onClick={sendUpdates}>{pubBusy ? t("store.publishing") : t("store.update.send", { n: updatesReady.length })}</button>}
           </div>
         )}
         {results && (
           <div className="card space-y-1" role="status">
-            <p className="font-medium">{t("store.published", { ok: results.filter((r) => r.ok).length, bad: results.filter((r) => !r.ok).length })}</p>
+            <p className="font-medium">{results.some((r) => r.updated) ? t("store.update.sent", { ok: results.filter((r) => r.ok).length, bad: results.filter((r) => !r.ok).length }) : t("store.published", { ok: results.filter((r) => r.ok).length, bad: results.filter((r) => !r.ok).length })}</p>
             <ul className="text-sm">{results.filter((r) => !r.ok).map((r) => <li key={r.id} className="text-red-600">{listings.find((l) => l.id === r.id)?.productName ?? r.id}: {r.error}</li>)}</ul>
           </div>
         )}

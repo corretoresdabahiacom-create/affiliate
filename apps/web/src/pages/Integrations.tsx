@@ -25,6 +25,7 @@ function ImportBox({ conn }: { conn: Connection }) {
     <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
       <h4 className="text-sm font-medium">{t("integ.import")}</h4>
       <p className="text-xs text-slate-500">{t("integ.importHelp")}</p>
+      <p className="text-xs text-slate-500">{t("integ.variantsHelp")}</p>
       <div className="flex items-center gap-2">
         <label className="label" htmlFor={`fmt-${conn.id}`}>{t("integ.format")}</label>
         <select id={`fmt-${conn.id}`} className="input w-28" value={format} onChange={(e) => setFormat(e.target.value as "csv" | "json")}>
@@ -53,6 +54,10 @@ function ConnCard({ c, onChange }: { c: Connection; onChange: () => void }) {
     setMsg(null);
     try { const r = await api.supplierSync(c.id); setMsg({ ok: true, text: t("integ.synced", { c: r.created, u: r.updated, e: r.errors.length }) }); } catch (e) { setMsg({ ok: false, text: errorMessage(e, t) }); }
   };
+  const toggleAuto = async (on: boolean) => {
+    setMsg(null);
+    try { await api.connectionPatch(c.id, { autoStock: on }); onChange(); } catch (e) { setMsg({ ok: false, text: errorMessage(e, t) }); }
+  };
   const remove = async () => { try { await api.connectionDelete(c.id); onChange(); } catch (e) { setMsg({ ok: false, text: errorMessage(e, t) }); } };
   return (
     <li className="card">
@@ -72,6 +77,12 @@ function ConnCard({ c, onChange }: { c: Connection; onChange: () => void }) {
         </div>
       </div>
       <Note m={msg} />
+      {c.provider === "shopee" && c.status === "connected" && (
+        <div className="mt-2 space-y-1 border-t border-slate-100 pt-2">
+          <label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={!!c.config.autoStock} onChange={(e) => toggleAuto(e.target.checked)} />{t("integ.autoStock")}</label>
+          <p className="text-xs text-slate-500">{t("integ.autoStock.help")}</p>
+        </div>
+      )}
       {c.provider === "supplier" && <ImportBox conn={c} />}
     </li>
   );

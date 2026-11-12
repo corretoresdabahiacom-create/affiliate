@@ -257,13 +257,26 @@ export interface AdDraft {
 export interface AdGenerated { items: AdDraft[]; skipped: Array<{ programId: string; reason: string }>; ai: Array<{ programId: string; mode: string; reason: string | null }>; publishedAnywhere: false }
 
 export interface Connection { id: string; provider: "shopee" | "supplier"; label: string; status: "pending" | "connected" | "error"; statusDetail: string | null; config: Record<string, any>; hasSecrets: boolean; createdAt: number }
-export interface SupplierProduct { id: string; connectionId: string; externalId: string; sku: string | null; name: string; description: string | null; costPrice: number; currency: string; stock: number | null; images: string[]; category: string | null; weightKg: number | null; source: string; syncedAt: number }
+export interface VariantModel { tierIndex: number[]; sku?: string | null; costPrice: number; stock?: number | null; price?: number }
+export interface Variants { tiers: Array<{ name: string; options: string[] }>; models: VariantModel[] }
+export interface AttributeDef { id: number; name: string; mandatory: boolean; inputType: string; values: Array<{ id: number; name: string }> }
+export interface AttributeValue { attributeId: number; valueId?: number; customValue?: string }
+export interface SyncProposal { stock?: { from: number | null; to: number }; price?: { from: number; to: number }; models?: Array<{ key: string; stock?: { from: number | null; to: number }; price?: { from: number | undefined; to: number } }>; costChanged: boolean }
+export interface OrderItem { itemId: string; modelId: string | null; name: string | null; sku: string | null; quantity: number; price: number }
+export interface Order {
+  id: string; connectionId: string; orderSn: string; status: string; orderedAt: number; currency: string; total: number | null; items: OrderItem[];
+  trackingNumber: string | null; trackingStatus: string | null; trackingEvents: Array<{ at: number; description: string; status: string | null }>; trackingCheckedAt: number | null;
+  supplierStatus: "not_placed" | "placed" | "shipped" | "delivered" | "problem"; supplierRef: string | null; supplierTracking: string | null; syncedAt: number;
+}
+export interface SupplierSheet { orderSn: string; lines: Array<{ productName: string; supplierExternalId: string | null; sku: string | null; quantity: number; unitCost: number | null; lineCost: number | null; matched: boolean }>; totalCost: number | null; unmatched: number; note: "manual_purchase" }
+export interface SupplierProduct { id: string; variants?: Variants | null; connectionId: string; externalId: string; sku: string | null; name: string; description: string | null; costPrice: number; currency: string; stock: number | null; images: string[]; category: string | null; weightKg: number | null; source: string; syncedAt: number }
 export interface Listing {
   id: string; connectionId: string; productId: string | null; productName: string; title: string; description: string; price: number; costPrice: number; currency: string;
   margin: { amount: number; percentOfPrice: number; feesIncluded: false }; stock: number | null; weightKg: number | null; categoryId: number | null; logisticsChannelIds: number[]; images: string[];
+  variants: Variants | null; attributes: AttributeValue[]; attributeSchema: AttributeDef[] | null; priceRule: { markupPercent?: number; fixedPrice?: number } | null; updateStatus: "dirty" | "authorized" | null; lastSyncedAt: number | null;
   textSource: "supplier" | "model" | "user"; status: "draft" | "approved" | "publishing" | "published" | "failed" | "discarded"; externalItemId: string | null; lastError: string | null; issues: string[];
 }
-export interface PublishResult { id: string; ok: boolean; itemId?: string; error?: string; issues?: string[] }
+export interface PublishResult { id: string; ok: boolean; itemId?: string; error?: string; issues?: string[]; updated?: boolean }
 
 export const api = {
   me: () => request<Me>("GET", "/api/me"),
@@ -365,5 +378,13 @@ export const api = {
   listingStatus: (id: string, status: string) => request<{ item: Listing }>("POST", `/api/market/listings/${id}/status`, { status }),
   listingPublish: (listingIds: string[]) => request<{ results: PublishResult[] }>("POST", "/api/market/listings/publish", { listingIds }),
   listingDelete: (id: string) => request<{ ok: true }>("DELETE", `/api/market/listings/${id}`),
+  connectionPatch: (id: string, body: { autoStock: boolean }) => request<{ item: Connection }>("PATCH", `/api/integrations/connections/${id}`, body),
+  syncPreview: (connectionId: string) => request<{ items: Array<{ listingId: string; productName: string; proposal: SyncProposal }>; checked: number }>("POST", "/api/market/sync/preview", { connectionId }),
+  syncApply: (connectionId: string, listingIds: string[], kinds: Array<"stock" | "price">) => request<{ applied: number; requiresAuthorization: true }>("POST", "/api/market/sync/apply", { connectionId, listingIds, kinds }),
+  orders: (connectionId?: string) => request<{ items: Order[] }>("GET", `/api/orders${connectionId ? `?connectionId=${connectionId}` : ""}`),
+  ordersSync: (connectionId: string, days: number) => request<{ created: number; updated: number }>("POST", "/api/orders/sync", { connectionId, days }),
+  orderSheet: (id: string) => request<SupplierSheet>("GET", `/api/orders/${id}/supplier-sheet`),
+  orderPatch: (id: string, body: Record<string, unknown>) => request<{ item: Order }>("PATCH", `/api/orders/${id}`, body),
+  orderTracking: (id: string) => request<{ item: Order }>("POST", `/api/orders/${id}/tracking/refresh`),
   adDelete: (id: string) => request<{ ok: true }>("DELETE", `/api/studio/ads/${id}`),
 };

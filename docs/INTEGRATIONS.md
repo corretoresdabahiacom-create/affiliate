@@ -1,4 +1,4 @@
-# Integrações e montagem de loja (Fase 6, parte 2)
+# Integrações, montagem de loja e operação (Fase 6, partes 2 e 3)
 
 Objetivo: levar produtos do fornecedor para a loja Shopee do próprio usuário, em lote (até 50 anúncios), **publicando só depois de revisão e autorização humana**.
 
@@ -12,6 +12,19 @@ Objetivo: levar produtos do fornecedor para a loja Shopee do próprio usuário, 
 | Montagem de loja | Até 50 produtos por vez viram rascunhos de anúncio. Preço por markup ou preço fixo, escolhido pelo usuário. |
 | Autorização | Em lote, mas só para rascunhos sem pendência e digitando a quantidade. Editar um anúncio derruba a autorização. |
 | Publicação | Só anúncios autorizados; reserva atômica evita publicar duas vezes; o erro da Shopee fica registrado como veio. |
+
+## Operação da loja (parte 3)
+
+| Peça | Como funciona |
+| --- | --- |
+| Variações | Até 2 níveis (ex.: Cor, Tamanho) e 50 modelos, com custo, preço e estoque por modelo. Vêm do conector/JSON (`variants`) ou do CSV: uma linha por modelo com `external_id` repetido e as colunas `tier1_name, option1, tier2_name, option2, variant_sku, variant_cost, variant_stock`. O preço de cada modelo segue a regra escolhida; o item é criado e depois as variações (`init_tier_variation`). |
+| Atributos obrigatórios | Ao escolher a categoria, o sistema consulta os atributos dela na Shopee. Os obrigatórios bloqueiam a autorização até a pessoa preencher com dado real; o sistema não inventa valores. |
+| Editar publicado | Título, descrição, preço e estoque (por modelo, se houver) podem ser editados. A edição vira "alteração pendente" e só vai para a Shopee depois de nova autorização (mesma confirmação da quantidade). Categoria, canais, imagens, atributos e peso ficam travados. |
+| Sincronização | "Comparar" confronta os publicados com o catálogo atual do fornecedor e só propõe estoque e preço (preço só se a regra for markup). Aplicar cria alteração pendente, que ainda exige autorização. |
+| Estoque automático | Opcional, desligado por padrão, por conexão. Ligado, um agendador (a cada 6 horas) atualiza só o estoque dos publicados sem alteração pendente; preço nunca muda sozinho. Cada atualização fica na auditoria (`listing.stock_auto`). |
+| Pedidos | Busca os pedidos da Shopee (1 a 15 dias) e guarda só o necessário (número, status, itens, total). Nome, endereço, telefone e documento do comprador não são pedidos nem guardados. |
+| Ficha do fornecedor | Lista o que comprar no fornecedor com o custo real de cada item. Item sem anúncio correspondente aparece como "sem custo conhecido"; o total só aparece se todos tiverem custo. O sistema não compra por você: o andamento (comprado, enviado, entregue, problema, nº do pedido, rastreio do fornecedor) é registrado à mão. |
+| Rastreio | Atualização sob demanda do código e dos eventos de rastreio da Shopee. |
 
 ## Fluxo
 
@@ -33,8 +46,11 @@ Objetivo: levar produtos do fornecedor para a loja Shopee do próprio usuário, 
 ## Limites e o que não foi verificado
 
 - **Não foi testado contra a Shopee nem contra a WeDrop reais**: não há credenciais neste ambiente. Os testes simulam as respostas. A assinatura foi conferida com um cálculo independente, mas os campos exigidos por categoria (atributos, marca etc.) variam e a documentação completa da Shopee exige login. Se a Shopee recusar um anúncio, o motivo aparece no card e nada fica publicado pela metade.
-- **WeDrop**: não encontrei documentação pública de API, então não há endpoints deles no código. Use o conector configurável com a documentação da sua conta, ou importe CSV/JSON. Pedidos, estoque em tempo real e rastreio não estão implementados.
-- Variações de produto, atributos obrigatórios por categoria, edição de anúncios já publicados e sincronização de estoque e preço depois de publicado não estão implementados.
+- **WeDrop**: não encontrei documentação pública de API, então não há endpoints deles no código. Use o conector configurável com a documentação da sua conta, ou importe CSV/JSON. O estoque só é atualizado quando o conector é sincronizado ou o CSV reimportado.
+- Os endpoints da parte 3 (`get_attributes`, `init_tier_variation`, `get_model_list`, `update_item`, `update_price`, `update_stock`, `get_order_list`, `get_order_detail`, `get_tracking_number`, `get_tracking_info`) foram escritos a partir do que conheço da API v2 e **não foram verificados** contra a Shopee real; os testes só simulam as respostas. Se a Shopee recusar, o erro aparece como veio. Limites de nome (14 caracteres no nível, 20 na opção) são conservadores.
+- Se as variações falharem depois de o item ser criado, o item fica registrado: a nova tentativa continua dele e não cria outro.
+- O custo das variações e a margem continuam sem taxas, comissão e frete.
+- Não há compra automática no fornecedor nem leitura de dados do comprador.
 - Limite de 500 produtos por importação e de 10 conexões por usuário.
 - Host da Shopee para o Brasil: confirme no console da Open Platform; os servidores oferecidos são `partner.shopeemobile.com` e `openplatform.shopee.com.br`.
 

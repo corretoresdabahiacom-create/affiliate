@@ -1,5 +1,26 @@
 # Changelog
 
+## Fase 6 (parte 3) — Operação da loja (0.8.0)
+
+Pedido: implementar o que ficou de fora da parte 2.
+
+### Implementado
+
+- Migration `0008_store_ops.sql`: variações e atributos nos anúncios, `update_status`, `marketplace_orders`.
+- Variações (2 níveis, até 50 modelos) com preço e estoque por modelo; importação por CSV agrupada por produto.
+- Atributos obrigatórios da categoria bloqueiam a autorização até serem preenchidos.
+- Edição de anúncios publicados com nova autorização; campos estruturais travados; criação idempotente do item e das variações.
+- Comparação e aplicação de estoque/preço do fornecedor (sempre como alteração pendente) e estoque automático opcional via agendador.
+- Pedidos sem dados do comprador, ficha do fornecedor (compra manual), andamento manual e rastreio. Tela `/orders`.
+
+### Testes
+
+`@ai/shared` 94, `@ai/api` 146, `@ai/web` 69; typecheck e build limpos; migração aplicada em e2e local.
+
+### Não verificado
+
+Nada foi testado contra Shopee/WeDrop reais; ver `docs/INTEGRATIONS.md`.
+
 ## Fase 6 (parte 2) — Integração Shopee/fornecedor e montagem de loja (0.7.0)
 
 Pedido: reproduzir o fluxo do vídeo (catálogo do fornecedor, preços, publicação na Shopee e montagem de 50 anúncios), com publicação só após revisão e autorização humana.
