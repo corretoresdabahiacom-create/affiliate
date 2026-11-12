@@ -1,4 +1,4 @@
-# Arquitetura (Fases 1 a 6, parte 1)
+# Arquitetura (Fases 1 a 6, parte 2)
 
 ## Visão geral
 
@@ -14,7 +14,7 @@ D1 (SQLite): users, user_profiles, sessions, login_tokens,
              affiliate_networks, advertisers, categories, affiliate_programs,
              program_sources, program_history, products, offers, program_search (FTS5),
              user_programs (+history, docs), campaigns, affiliate_links, link_clicks,
-             commissions, commission_adjustments, ai_usage, ai_cache, seasonal_entries, seasonal_entry_programs, ad_drafts
+             commissions, commission_adjustments, ai_usage, ai_cache, seasonal_entries, seasonal_entry_programs, ad_drafts, integration_connections, supplier_products, marketplace_listings
 ```
 
 Frontend e API na mesma origem eliminam CORS e simplificam o cookie de sessão.

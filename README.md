@@ -52,6 +52,10 @@ Inspirado no anúncio de uma plataforma de dropshipping (calendário de produtos
 - **Calendário sazonal**: nichos por mês cadastrados por editores. Percentual ou métrica só é publicado com a fonte citada; sem dado cadastrado, a tela diz que está vazio. Nada vem pré-carregado.
 - **Rascunhos de divulgação em lote** (até 10 programas): título e descrição a partir do catálogo, com descrição opcional da IA conferida contra o catálogo, aviso de afiliado no idioma escolhido e checagem do canal (blog, YouTube, Instagram, TikTok, e-mail). Você revisa, aprova e copia. Nada é publicado em nenhum canal.
 
+## Integrações e montagem de loja (Fase 6, parte 2)
+
+Conexão com a loja **Shopee** (API oficial, credenciais suas, cifradas) e com um **fornecedor** (conector configurável + CSV/JSON). A **montagem de loja** gera até 50 anúncios de uma vez como rascunho; você revisa, autoriza e só então publica. Detalhes e limites em [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md). **Não foi testado contra Shopee/WeDrop reais.**
+
 ## Estrutura
 
 ```text
@@ -98,7 +102,7 @@ Limites do plano gratuito a ter em mente: 100.000 requisições por dia, 10 ms d
 | 3 | Pontuação, simulador, comparação, recomendações, alertas | **Concluída** |
 | 4 | Gestão do afiliado: programas, links, campanhas, comissões | **Concluída** |
 | 5 | Inteligência artificial: assistente, análise, estratégia, pesquisa, RAG, custos | **Concluída** |
-| 6 | Estúdio de conteúdo | **Em andamento**: calendário sazonal e rascunhos de divulgação prontos (0.6.0) |
+| 6 | Estúdio de conteúdo | **Em andamento**: calendário sazonal, rascunhos de divulgação (0.6.0), integração Shopee/fornecedor e montagem de loja (0.7.0) |
 | 7 | Integrações e automações (APIs oficiais, n8n, e-mail, notificações, publicação) | Planejada |
 | 8 | Analytics e monetização (cliques, conversões, rentabilidade, relatórios) | Planejada |
 | 9 | Segurança e produção (auditoria, backup, performance) | Planejada |

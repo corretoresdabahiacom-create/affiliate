@@ -256,6 +256,15 @@ export interface AdDraft {
 }
 export interface AdGenerated { items: AdDraft[]; skipped: Array<{ programId: string; reason: string }>; ai: Array<{ programId: string; mode: string; reason: string | null }>; publishedAnywhere: false }
 
+export interface Connection { id: string; provider: "shopee" | "supplier"; label: string; status: "pending" | "connected" | "error"; statusDetail: string | null; config: Record<string, any>; hasSecrets: boolean; createdAt: number }
+export interface SupplierProduct { id: string; connectionId: string; externalId: string; sku: string | null; name: string; description: string | null; costPrice: number; currency: string; stock: number | null; images: string[]; category: string | null; weightKg: number | null; source: string; syncedAt: number }
+export interface Listing {
+  id: string; connectionId: string; productId: string | null; productName: string; title: string; description: string; price: number; costPrice: number; currency: string;
+  margin: { amount: number; percentOfPrice: number; feesIncluded: false }; stock: number | null; weightKg: number | null; categoryId: number | null; logisticsChannelIds: number[]; images: string[];
+  textSource: "supplier" | "model" | "user"; status: "draft" | "approved" | "publishing" | "published" | "failed" | "discarded"; externalItemId: string | null; lastError: string | null; issues: string[];
+}
+export interface PublishResult { id: string; ok: boolean; itemId?: string; error?: string; issues?: string[] }
+
 export const api = {
   me: () => request<Me>("GET", "/api/me"),
   requestLogin: (email: string, locale: string) =>
@@ -338,5 +347,23 @@ export const api = {
   adPatch: (id: string, body: Record<string, unknown>) => request<{ item: AdDraft }>("PATCH", `/api/studio/ads/${id}`, body),
   adStatus: (id: string, status: string, acknowledgeUnverified = false) => request<{ item: AdDraft }>("POST", `/api/studio/ads/${id}/status`, { status, acknowledgeUnverified }),
   adExport: (id: string) => request<{ text: string; published: false }>("GET", `/api/studio/ads/${id}/export`),
+  integStatus: () => request<{ vaultReady: boolean; hosts: string[] }>("GET", "/api/integrations/status"),
+  connections: () => request<{ items: Connection[] }>("GET", "/api/integrations/connections"),
+  connectionCreate: (body: Record<string, unknown>) => request<{ item: Connection }>("POST", "/api/integrations/connections", body),
+  connectionDelete: (id: string) => request<{ ok: true }>("DELETE", `/api/integrations/connections/${id}`),
+  shopeeAuthUrl: (id: string) => request<{ url: string }>("GET", `/api/integrations/connections/${id}/shopee/auth-url`),
+  shopeeCategories: (id: string, q: string) => request<{ items: Array<{ id: number; name: string }> }>("GET", `/api/integrations/connections/${id}/shopee/categories?q=${encodeURIComponent(q)}`),
+  shopeeChannels: (id: string) => request<{ items: Array<{ id: number; name: string; enabled: boolean }> }>("GET", `/api/integrations/connections/${id}/shopee/channels`),
+  supplierImport: (body: Record<string, unknown>) => request<{ created?: number; updated?: number; valid?: number; dryRun?: boolean; errors: Array<{ row: number; error: string }> }>("POST", "/api/integrations/supplier/import", body),
+  supplierSync: (id: string) => request<{ created: number; updated: number; errors: Array<{ row: number; error: string }> }>("POST", `/api/integrations/connections/${id}/supplier/sync`),
+  supplierProducts: (connectionId?: string) => request<{ items: SupplierProduct[] }>("GET", `/api/integrations/supplier/products${connectionId ? `?connectionId=${connectionId}` : ""}`),
+  storeBuild: (body: Record<string, unknown>) => request<{ items: Listing[]; skipped: Array<{ productId: string; reason: string }>; published: false }>("POST", "/api/market/store/build", body),
+  listings: (connectionId?: string) => request<{ items: Listing[] }>("GET", `/api/market/listings${connectionId ? `?connectionId=${connectionId}` : ""}`),
+  listingPatch: (id: string, body: Record<string, unknown>) => request<{ item: Listing }>("PATCH", `/api/market/listings/${id}`, body),
+  listingBulk: (body: Record<string, unknown>) => request<{ updated: number }>("POST", "/api/market/listings/bulk-patch", body),
+  listingAuthorize: (listingIds: string[], confirmCount: number) => request<{ authorized: string[]; rejected: Array<{ id: string; issues: string[] }> }>("POST", "/api/market/listings/authorize", { listingIds, confirmCount }),
+  listingStatus: (id: string, status: string) => request<{ item: Listing }>("POST", `/api/market/listings/${id}/status`, { status }),
+  listingPublish: (listingIds: string[]) => request<{ results: PublishResult[] }>("POST", "/api/market/listings/publish", { listingIds }),
+  listingDelete: (id: string) => request<{ ok: true }>("DELETE", `/api/market/listings/${id}`),
   adDelete: (id: string) => request<{ ok: true }>("DELETE", `/api/studio/ads/${id}`),
 };

@@ -37,6 +37,7 @@ O login por link precisa enviar e-mail. O código usa a API do Resend quando exi
 cd apps/api
 npx wrangler secret put RESEND_API_KEY
 npx wrangler secret put CLICK_SALT   # sal do hash de cliques (texto aleatório longo)
+npx wrangler secret put CREDENTIALS_KEY   # 32 bytes em base64 (openssl rand -base64 32): cifra as credenciais de integrações
 ```
 
 Antes de depender disso, confirme na página do provedor o plano gratuito, a necessidade de cartão e a verificação de domínio para o remetente; essas condições não foram verificadas aqui. Sem o segredo, a aplicação sobe, mas ninguém recebe o link. Para trocar de provedor, altere só `apps/api/src/mailer.ts`.

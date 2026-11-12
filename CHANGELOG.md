@@ -1,5 +1,32 @@
 # Changelog
 
+## Fase 6 (parte 2) — Integração Shopee/fornecedor e montagem de loja (0.7.0)
+
+Pedido: reproduzir o fluxo do vídeo (catálogo do fornecedor, preços, publicação na Shopee e montagem de 50 anúncios), com publicação só após revisão e autorização humana.
+
+### Implementado
+
+- Migration `0007_market.sql`: `integration_connections` (segredos cifrados), `supplier_products`, `marketplace_listings`; tudo apagado com a conta; exportação sem segredos.
+- Cofre AES-GCM (`CREDENTIALS_KEY`), cliente Shopee Open Platform v2 (assinatura HMAC, OAuth, renovação de token, categorias, canais, imagens, `add_item`), conector de fornecedor configurável e importação CSV/JSON com simulação.
+- API `/api/integrations` e `/api/market`: montagem de até 50 rascunhos, edição em lote de categoria/envio/peso, autorização com confirmação da quantidade, publicação com reserva atômica e erro da Shopee registrado.
+- Telas `/integrations` e `/store` em PT-BR, EN-US e ES.
+- Correção: `callModel` agora limpa o temporizador e trata rejeição tardia; o teste do erro de modelo (Fase 5) deixou de gerar erro não tratado que fazia o comando de testes sair com falha.
+
+### Testes
+
+| Pacote | Testes | Resultado |
+| --- | --- | --- |
+| `@ai/shared` | 79 | passaram |
+| `@ai/api` | 136 | passaram |
+| `@ai/web` | 60 | passaram |
+
+### Limitações (leia antes de usar)
+
+- **Nada foi testado contra a Shopee ou a WeDrop reais** (sem credenciais aqui). Respostas simuladas; assinatura conferida por cálculo independente.
+- **WeDrop não tem documentação pública de API**: não há endpoints dela no código; use o conector configurável ou CSV/JSON.
+- Sem variações, atributos obrigatórios por categoria, edição de anúncio publicado, sincronização de estoque/preço pós-publicação, pedidos ou rastreio.
+- Margem sem taxas, comissão e frete da Shopee (não estimados).
+
 ## Fase 6 (parte 1) — Estúdio: calendário sazonal e rascunhos (0.6.0)
 
 Origem: vídeo de anúncio de uma plataforma de dropshipping (produtos sazonais, "quero anunciar esse produto", montagem de loja automática). Foi adaptado ao SaaS de afiliados, sem copiar números de marketing, marca nem integrações de terceiros.

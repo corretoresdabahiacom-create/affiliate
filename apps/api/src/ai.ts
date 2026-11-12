@@ -70,15 +70,19 @@ async function budget(env: Env, cfg: AiConfig, userId: string): Promise<{ limit:
 
 async function callModel(env: Env, cfg: AiConfig, system: string, user: string): Promise<string | null> {
   if (!env.AI) return null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    const res = (await Promise.race([
-      env.AI.run(cfg.model, { messages: [{ role: "system", content: system }, { role: "user", content: user }], max_tokens: cfg.maxOutputTokens }),
-      new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 25_000)),
-    ])) as any;
+    const run = Promise.resolve().then(() =>
+      env.AI!.run(cfg.model, { messages: [{ role: "system", content: system }, { role: "user", content: user }], max_tokens: cfg.maxOutputTokens }),
+    );
+    run.catch(() => {}); // erro depois do timeout não pode virar rejeição sem tratamento
+    const res = (await Promise.race([run, new Promise((_, rej) => (timer = setTimeout(() => rej(new Error("timeout")), 25_000)))])) as any;
     const text = typeof res === "string" ? res : (res?.response ?? res?.result?.response ?? null);
     return typeof text === "string" && text.trim() ? text.trim() : null;
   } catch {
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
 

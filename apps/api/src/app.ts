@@ -21,6 +21,8 @@ import { allow } from "./ratelimit";
 import { ops } from "./ops";
 import { ai } from "./ai";
 import { studio } from "./studio";
+import { integrations } from "./integrations";
+import { market } from "./market";
 import { isBotUserAgent } from "@ai/shared";
 import type { AppBindings, Env, SessionUser } from "./types";
 
@@ -268,7 +270,11 @@ async function exportOps(db: D1Database, userId: string) {
   const [programs, programHistory, programDocs, links, linkClicks, campaigns, commissions, adjustments, adDrafts] = await Promise.all(
     ["user_programs", "user_program_history", "user_program_docs", "affiliate_links", "link_clicks", "campaigns", "commissions", "commission_adjustments", "ad_drafts"].map(q),
   );
-  return { programs, programHistory, programDocs, links, linkClicks, campaigns, commissions, adjustments, adDrafts };
+  // Conexões: sem credenciais, só dados não secretos.
+  const connections = (await db.prepare("SELECT id, provider, label, config, status, created_at FROM integration_connections WHERE user_id = ?").bind(userId).all()).results;
+  const supplierProducts = await q("supplier_products");
+  const listings = await q("marketplace_listings");
+  return { programs, programHistory, programDocs, links, linkClicks, campaigns, commissions, adjustments, adDrafts, connections, supplierProducts, listings };
 }
 
 app.get("/api/me/export", requireUser, async (c) => {
@@ -385,6 +391,8 @@ app.route("/api/intel", intel);
 app.route("/api/ops", ops);
 app.route("/api/ai", ai);
 app.route("/api/studio", studio);
+app.route("/api/integrations", integrations);
+app.route("/api/market", market);
 
 // ---------- Redirecionamento próprio (/r/:code) ----------
 // Só funciona para links "own_redirect" de programas que CONFIRMARAM permitir redirecionamento.

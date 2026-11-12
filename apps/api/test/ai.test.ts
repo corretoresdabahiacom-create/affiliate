@@ -37,7 +37,7 @@ beforeAll(async () => {
 
 
 // Modelo simulado: cada teste troca a implementação.
-let aiImpl: (model: string, input: any) => Promise<unknown> = async () => ({ response: "" });
+let aiImpl: (model: string, input: any) => Promise<unknown> | never = async () => ({ response: "" });
 const aiCalls: any[] = [];
 const testEnv = { ...env, AI: { run: async (m: string, i: any) => (aiCalls.push({ m, i }), aiImpl(m, i)) } };
 const callAi = async (path: string, o: { method?: string; body?: unknown; cookie?: string } = {}, e: any = testEnv) => {
@@ -157,7 +157,7 @@ describe("modo sem modelo", () => {
   });
   it("erro ou timeout do modelo também cai em fatos do sistema", async () => {
     reset();
-    aiImpl = async () => { throw new Error("boom"); };
+    aiImpl = () => new Promise((_, rej) => setTimeout(() => rej(new Error("boom")), 0));
     const r = await callAi("/api/ai/chat", { method: "POST", cookie: user, body: { message: "Zeta?? hosting", programId: pid } });
     expect(r.body).toMatchObject({ mode: "facts_only", reason: "model_error" });
   });
