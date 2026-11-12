@@ -13,6 +13,10 @@ run_worker_first = ["/api/*", "/r/*"]
 [ai]
 binding = "AI"
 
+# Agendador: sincroniza estoque dos anúncios publicados (só para conexões com "estoque automático" ligado).
+[triggers]
+crons = ["17 */6 * * *"]
+
 [[d1_databases]]
 binding = "DB"
 database_name = "affiliate-intelligence"

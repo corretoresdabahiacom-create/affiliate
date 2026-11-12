@@ -23,6 +23,7 @@ import { ai } from "./ai";
 import { studio } from "./studio";
 import { integrations } from "./integrations";
 import { market } from "./market";
+import { orders } from "./orders";
 import { isBotUserAgent } from "@ai/shared";
 import type { AppBindings, Env, SessionUser } from "./types";
 
@@ -274,7 +275,8 @@ async function exportOps(db: D1Database, userId: string) {
   const connections = (await db.prepare("SELECT id, provider, label, config, status, created_at FROM integration_connections WHERE user_id = ?").bind(userId).all()).results;
   const supplierProducts = await q("supplier_products");
   const listings = await q("marketplace_listings");
-  return { programs, programHistory, programDocs, links, linkClicks, campaigns, commissions, adjustments, adDrafts, connections, supplierProducts, listings };
+  const orderRows = await q("marketplace_orders");
+  return { programs, programHistory, programDocs, links, linkClicks, campaigns, commissions, adjustments, adDrafts, connections, supplierProducts, listings, orders: orderRows };
 }
 
 app.get("/api/me/export", requireUser, async (c) => {
@@ -393,6 +395,7 @@ app.route("/api/ai", ai);
 app.route("/api/studio", studio);
 app.route("/api/integrations", integrations);
 app.route("/api/market", market);
+app.route("/api/orders", orders);
 
 // ---------- Redirecionamento próprio (/r/:code) ----------
 // Só funciona para links "own_redirect" de programas que CONFIRMARAM permitir redirecionamento.

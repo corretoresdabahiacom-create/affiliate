@@ -114,6 +114,7 @@ export async function uploadImage(c: ShopeeCreds, url: string): Promise<string> 
 }
 
 export interface NewItem {
+  attributes?: Array<{ attributeId: number; valueId?: number; customValue?: string }>;
   title: string;
   description: string;
   price: number;
@@ -137,12 +138,81 @@ export async function addItem(c: ShopeeCreds, i: NewItem): Promise<string> {
       image: { image_id_list: i.imageIds },
       logistic_info: i.logisticsChannelIds.map((id) => ({ logistic_id: id, enabled: true })),
       item_status: "NORMAL",
+      ...(i.attributes?.length ? { attribute_list: i.attributes.map((a) => ({ attribute_id: a.attributeId, attribute_value_list: [a.valueId != null ? { value_id: a.valueId } : { original_value_name: a.customValue }] })) } : {}),
       ...(i.sku ? { item_sku: i.sku } : {}),
     },
   });
   const id = r.item_id;
   if (!id) throw new ShopeeError("shopee_error", "add_item: no item_id in response");
   return String(id);
+}
+
+export interface ShopeeAttribute { id: number; name: string; mandatory: boolean; inputType: string; values: Array<{ id: number; name: string }> }
+export async function getAttributes(c: ShopeeCreds, categoryId: number): Promise<ShopeeAttribute[]> {
+  const r = await call(c, "GET", "/api/v2/product/get_attributes", { shopApi: true, query: { category_id: String(categoryId), language: "pt-BR" } });
+  return ((r.attribute_list ?? []) as any[]).map((a) => ({
+    id: a.attribute_id,
+    name: a.display_attribute_name ?? a.original_attribute_name ?? String(a.attribute_id),
+    mandatory: !!a.is_mandatory,
+    inputType: String(a.input_type ?? ""),
+    values: ((a.attribute_value_list ?? []) as any[]).slice(0, 100).map((v) => ({ id: v.value_id, name: v.display_value_name ?? v.original_value_name ?? String(v.value_id) })),
+  }));
+}
+
+export interface TierPayload { tiers: Array<{ name: string; options: string[] }>; models: Array<{ tierIndex: number[]; sku?: string | null; price: number; stock: number }> }
+export async function initTierVariation(c: ShopeeCreds, itemId: string, v: TierPayload): Promise<void> {
+  await call(c, "POST", "/api/v2/product/init_tier_variation", {
+    shopApi: true,
+    body: {
+      item_id: Number(itemId),
+      tier_variation: v.tiers.map((t) => ({ name: t.name, option_list: t.options.map((o) => ({ option: o })) })),
+      model: v.models.map((m) => ({ tier_index: m.tierIndex, original_price: m.price, seller_stock: [{ stock: m.stock }], ...(m.sku ? { model_sku: m.sku } : {}) })),
+    },
+  });
+}
+export interface ShopeeModel { modelId: number; tierIndex: number[] }
+export async function getModelList(c: ShopeeCreds, itemId: string): Promise<ShopeeModel[]> {
+  const r = await call(c, "GET", "/api/v2/product/get_model_list", { shopApi: true, query: { item_id: itemId } });
+  return ((r.model ?? []) as any[]).map((m) => ({ modelId: m.model_id, tierIndex: m.tier_index ?? [] }));
+}
+export async function updateItem(c: ShopeeCreds, itemId: string, f: { title: string; description: string }): Promise<void> {
+  await call(c, "POST", "/api/v2/product/update_item", { shopApi: true, body: { item_id: Number(itemId), item_name: f.title, description: f.description } });
+}
+export async function updatePrice(c: ShopeeCreds, itemId: string, list: Array<{ modelId: number; price: number }>): Promise<void> {
+  await call(c, "POST", "/api/v2/product/update_price", { shopApi: true, body: { item_id: Number(itemId), price_list: list.map((x) => ({ model_id: x.modelId, original_price: x.price })) } });
+}
+export async function updateStock(c: ShopeeCreds, itemId: string, list: Array<{ modelId: number; stock: number }>): Promise<void> {
+  await call(c, "POST", "/api/v2/product/update_stock", { shopApi: true, body: { item_id: Number(itemId), stock_list: list.map((x) => ({ model_id: x.modelId, seller_stock: [{ stock: x.stock }] })) } });
+}
+
+/** Lista pedidos por data de criação (até 4 páginas de 50). Só guarda número e situação aqui. */
+export async function getOrderList(c: ShopeeCreds, from: number, to: number): Promise<Array<{ sn: string; status: string }>> {
+  const out: Array<{ sn: string; status: string }> = [];
+  let cursor = "";
+  for (let page = 0; page < 4; page++) {
+    const r = await call(c, "GET", "/api/v2/order/get_order_list", { shopApi: true, query: { time_range_field: "create_time", time_from: String(from), time_to: String(to), page_size: "50", ...(cursor ? { cursor } : {}) } });
+    for (const o of (r.order_list ?? []) as any[]) out.push({ sn: o.order_sn, status: o.order_status });
+    if (!r.more || !r.next_cursor) break;
+    cursor = String(r.next_cursor);
+  }
+  return out;
+}
+/** Detalhe com itens e total. Não pede dados do comprador nem endereço. */
+export async function getOrderDetails(c: ShopeeCreds, sns: string[]): Promise<any[]> {
+  const out: any[] = [];
+  for (let i = 0; i < sns.length; i += 50) {
+    const r = await call(c, "GET", "/api/v2/order/get_order_detail", { shopApi: true, query: { order_sn_list: sns.slice(i, i + 50).join(","), response_optional_fields: "item_list,total_amount" } });
+    out.push(...((r.order_list ?? []) as any[]));
+  }
+  return out;
+}
+export interface TrackingEvent { at: number; description: string; status: string | null }
+export async function getTracking(c: ShopeeCreds, orderSn: string): Promise<{ trackingNumber: string | null; status: string | null; events: TrackingEvent[] }> {
+  const n = await call(c, "GET", "/api/v2/logistics/get_tracking_number", { shopApi: true, query: { order_sn: orderSn } });
+  const trackingNumber = n.tracking_number ? String(n.tracking_number) : null;
+  const i = await call(c, "GET", "/api/v2/logistics/get_tracking_info", { shopApi: true, query: { order_sn: orderSn, ...(trackingNumber ? { tracking_number: trackingNumber } : {}) } });
+  const events = ((i.tracking_info ?? []) as any[]).slice(0, 30).map((e) => ({ at: Number(e.update_time ?? 0) * 1000, description: String(e.description ?? "").slice(0, 300), status: e.logistics_status ? String(e.logistics_status) : null }));
+  return { trackingNumber, status: i.logistics_status ? String(i.logistics_status) : (events[0]?.status ?? null), events };
 }
 
 /** Sugestão (não escolha): categorias-folha cujo nome tem palavras em comum com o produto. */

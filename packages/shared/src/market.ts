@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { adApprovalIssues, adClaimIssues } from "./studio";
+import { attributeIssues, variantIssues, variantsSchema, type AttributeDef, type AttributeValue, type Variants } from "./store";
 
 /**
  * Integrações e montagem de loja (Fase 6, parte 2).
@@ -38,6 +39,8 @@ export const supplierMappingSchema = z
     images: z.string().trim().max(80).default("images"),
     category: z.string().trim().max(80).optional(),
     weightKg: z.string().trim().max(80).optional(),
+    /** Caminho do objeto de variações: { tiers: [{name, options}], models: [{tierIndex, sku, costPrice, stock}] }. */
+    variants: z.string().trim().max(80).optional(),
   })
   .default({} as never);
 export type SupplierMapping = z.infer<typeof supplierMappingSchema>;
@@ -64,6 +67,7 @@ export const supplierProductInputSchema = z.object({
   images: z.array(httpsUrl).max(9).default([]),
   category: z.string().trim().max(200).nullish(),
   weightKg: z.number().min(0).max(1000).nullish(),
+  variants: variantsSchema.nullish(),
 });
 export type SupplierProductInput = z.infer<typeof supplierProductInputSchema>;
 export const supplierImportSchema = z.object({
@@ -85,6 +89,21 @@ const num = (v: unknown): number | null => {
   return s !== "" && Number.isFinite(n) ? n : null;
 };
 
+function rawVariants(v: any): unknown {
+  if (!v || typeof v !== "object") return null;
+  return {
+    tiers: v.tiers,
+    models: Array.isArray(v.models)
+      ? v.models.map((m: any) => ({
+          tierIndex: m.tierIndex ?? m.tier_index,
+          sku: m.sku ?? null,
+          costPrice: num(m.costPrice ?? m.cost_price ?? m.price) ?? NaN,
+          stock: num(m.stock) == null ? null : Math.trunc(num(m.stock)!),
+        }))
+      : v.models,
+  };
+}
+
 /** Converte um item cru do JSON do fornecedor. Campo que não dá para ler vira erro, nunca valor inventado. */
 export function normalizeSupplierItem(raw: unknown, m: SupplierMapping): { ok: true; item: SupplierProductInput } | { ok: false; error: string } {
   const id = dig(raw, m.externalId);
@@ -100,6 +119,7 @@ export function normalizeSupplierItem(raw: unknown, m: SupplierMapping): { ok: t
     images: Array.isArray(imgs) ? imgs.map((i) => (typeof i === "string" ? i : String((i as any)?.url ?? ""))).filter(Boolean) : typeof imgs === "string" && imgs ? imgs.split("|").map((s) => s.trim()).filter(Boolean) : [],
     category: m.category ? (dig(raw, m.category) as string | undefined) ?? null : null,
     weightKg: m.weightKg ? num(dig(raw, m.weightKg)) : null,
+    variants: m.variants ? rawVariants(dig(raw, m.variants)) : null,
   };
   const p = supplierProductInputSchema.safeParse(candidate);
   return p.success ? { ok: true, item: p.data } : { ok: false, error: p.error.issues.map((i) => i.path.join(".") || "item").join(",") };
@@ -170,6 +190,9 @@ export interface ListingCheckInput {
   images: string[];
   /** Fatos do fornecedor, contra os quais o texto é conferido. */
   context: string;
+  variants?: Variants | null;
+  attributeSchema?: AttributeDef[] | null;
+  attributes?: AttributeValue[];
 }
 /** O que impede de autorizar. Lista vazia = pode autorizar. */
 export function listingIssues(l: ListingCheckInput): string[] {
@@ -183,6 +206,8 @@ export function listingIssues(l: ListingCheckInput): string[] {
   if (!l.categoryId) out.push("category_missing");
   if (l.logisticsChannelIds.length === 0) out.push("logistics_missing");
   if (l.images.length === 0) out.push("images_missing");
+  for (const i of variantIssues(l.variants ?? null)) out.push(i);
+  for (const i of attributeIssues(l.categoryId, l.attributeSchema ?? null, l.attributes ?? [])) out.push(i);
   for (const i of adApprovalIssues(`${l.title}\n${l.description}`, l.context)) out.push(i);
   return [...new Set(out)];
 }

@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import {
   connectionCreateSchema,
+  groupVariantRows,
   normalizeSupplierItem,
   supplierImportSchema,
   supplierMappingSchema,
@@ -174,6 +175,33 @@ integrations.get("/connections/:id/shopee/channels", async (c) => {
   }
 });
 
+/** Atributos da categoria (os obrigatórios variam). Só leitura: quem preenche o valor é a pessoa. */
+integrations.get("/connections/:id/shopee/attributes", async (c) => {
+  const conn = await ownConn(c, c.req.param("id"), "shopee");
+  if (!conn) return c.json({ error: "not_found" }, 404);
+  const categoryId = Number(c.req.query("categoryId"));
+  if (!Number.isInteger(categoryId) || categoryId <= 0) return c.json({ error: "invalid_input" }, 400);
+  if (!(await allow(c.env.DB, `shopee-read:${uid(c)}`, 20, 60))) return c.json({ error: "rate_limited" }, 429);
+  try {
+    return c.json({ items: await shopee.getAttributes(await shopeeCreds(c.env, conn), categoryId) });
+  } catch (e) {
+    return shopeeFail(c, e);
+  }
+});
+
+/** Preferências da conexão. autoStock: liga a sincronização automática só de ESTOQUE dos anúncios já publicados (preço nunca muda sozinho). */
+integrations.patch("/connections/:id", async (c) => {
+  const conn = await ownConn(c, c.req.param("id"));
+  if (!conn) return c.json({ error: "not_found" }, 404);
+  const body = (await c.req.json().catch(() => null)) as { autoStock?: unknown } | null;
+  if (!body || typeof body.autoStock !== "boolean" || conn.provider !== "shopee") return c.json({ error: "invalid_input" }, 400);
+  const cfg = JSON.parse(conn.config as string);
+  cfg.autoStock = body.autoStock;
+  await c.env.DB.prepare("UPDATE integration_connections SET config = ?, updated_at = ? WHERE id = ?").bind(JSON.stringify(cfg), now(), conn.id).run();
+  await audit(c.env.DB, uid(c), body.autoStock ? "integration.auto_stock_on" : "integration.auto_stock_off", conn.id as string);
+  return c.json({ item: connOut((await ownConn(c, conn.id as string))!) });
+});
+
 // ---------- Fornecedor: catálogo e custos ----------
 
 async function upsertProducts(c: any, connectionId: string, items: SupplierProductInput[], source: "csv" | "json" | "api") {
@@ -184,20 +212,20 @@ async function upsertProducts(c: any, connectionId: string, items: SupplierProdu
     const ex = await c.env.DB.prepare("SELECT id FROM supplier_products WHERE connection_id = ? AND external_id = ?").bind(connectionId, i.externalId).first();
     if (ex) {
       await c.env.DB.prepare(
-        "UPDATE supplier_products SET sku=?, name=?, description=?, cost_price=?, currency=?, stock=?, images=?, category=?, weight_kg=?, source=?, synced_at=? WHERE id=?",
-      ).bind(i.sku ?? null, i.name, i.description ?? null, i.costPrice, i.currency, i.stock ?? null, JSON.stringify(i.images), i.category ?? null, i.weightKg ?? null, source, t, ex.id).run();
+        "UPDATE supplier_products SET sku=?, name=?, description=?, cost_price=?, currency=?, stock=?, images=?, category=?, weight_kg=?, source=?, synced_at=?, variants=? WHERE id=?",
+      ).bind(i.sku ?? null, i.name, i.description ?? null, i.costPrice, i.currency, i.stock ?? null, JSON.stringify(i.images), i.category ?? null, i.weightKg ?? null, source, t, i.variants ? JSON.stringify(i.variants) : null, ex.id).run();
       updated++;
     } else {
       await c.env.DB.prepare(
-        "INSERT INTO supplier_products (id, user_id, connection_id, external_id, sku, name, description, cost_price, currency, stock, images, category, weight_kg, source, synced_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-      ).bind(crypto.randomUUID(), uid(c), connectionId, i.externalId, i.sku ?? null, i.name, i.description ?? null, i.costPrice, i.currency, i.stock ?? null, JSON.stringify(i.images), i.category ?? null, i.weightKg ?? null, source, t).run();
+        "INSERT INTO supplier_products (id, user_id, connection_id, external_id, sku, name, description, cost_price, currency, stock, images, category, weight_kg, source, synced_at, variants) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+      ).bind(crypto.randomUUID(), uid(c), connectionId, i.externalId, i.sku ?? null, i.name, i.description ?? null, i.costPrice, i.currency, i.stock ?? null, JSON.stringify(i.images), i.category ?? null, i.weightKg ?? null, source, t, i.variants ? JSON.stringify(i.variants) : null).run();
       created++;
     }
   }
   return { created, updated };
 }
 
-const CSV_MAP: SupplierMapping = supplierMappingSchema.parse({ externalId: "external_id", sku: "sku", name: "name", description: "description", costPrice: "cost_price", stock: "stock", images: "images", category: "category", weightKg: "weight_kg" });
+const CSV_MAP: SupplierMapping = supplierMappingSchema.parse({ externalId: "external_id", sku: "sku", name: "name", description: "description", costPrice: "cost_price", stock: "stock", images: "images", category: "category", weightKg: "weight_kg", variants: "variants" });
 
 integrations.post("/supplier/import", async (c) => {
   const p = supplierImportSchema.safeParse(await c.req.json().catch(() => null));
@@ -210,8 +238,9 @@ integrations.post("/supplier/import", async (c) => {
   if (p.data.format === "csv") {
     const table = parseCsv(p.data.data);
     const header = (table.shift() ?? []).map((h) => h.trim().toLowerCase());
-    for (const need of ["external_id", "name", "cost_price"]) if (!header.includes(need)) return c.json({ error: "missing_columns", required: ["external_id", "name", "cost_price"] }, 400);
-    raws = table.map((r) => Object.fromEntries(header.map((h, i) => [h, (r[i] ?? "").trim()])));
+    for (const need of ["external_id", "name"]) if (!header.includes(need)) return c.json({ error: "missing_columns", required: ["external_id", "name", "cost_price"] }, 400);
+    if (!header.includes("cost_price") && !header.includes("variant_cost")) return c.json({ error: "missing_columns", required: ["external_id", "name", "cost_price"] }, 400);
+    raws = groupVariantRows(table.map((r) => Object.fromEntries(header.map((h, i) => [h, (r[i] ?? "").trim()]))));
   } else {
     let j: unknown;
     try { j = JSON.parse(p.data.data); } catch { return c.json({ error: "invalid_json" }, 400); }
@@ -276,7 +305,7 @@ integrations.post("/connections/:id/supplier/sync", async (c) => {
 export const productOut = (r: Row) => ({
   id: r.id, connectionId: r.connection_id, externalId: r.external_id, sku: r.sku, name: r.name, description: r.description,
   costPrice: r.cost_price, currency: r.currency, stock: r.stock, images: JSON.parse((r.images as string) || "[]"), category: r.category, weightKg: r.weight_kg,
-  source: r.source, syncedAt: r.synced_at,
+  source: r.source, syncedAt: r.synced_at, variants: r.variants ? JSON.parse(r.variants as string) : null,
 });
 
 integrations.get("/supplier/products", async (c) => {
