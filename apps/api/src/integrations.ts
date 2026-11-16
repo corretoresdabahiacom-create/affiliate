@@ -227,28 +227,30 @@ async function upsertProducts(c: any, connectionId: string, items: SupplierProdu
 
 const CSV_MAP: SupplierMapping = supplierMappingSchema.parse({ externalId: "external_id", sku: "sku", name: "name", description: "description", costPrice: "cost_price", stock: "stock", images: "images", category: "category", weightKg: "weight_kg", variants: "variants" });
 
-integrations.post("/supplier/import", async (c) => {
-  const p = supplierImportSchema.safeParse(await c.req.json().catch(() => null));
-  if (!p.success) return c.json({ error: "invalid_input", issues: p.error.issues }, 400);
+/** Importação de CSV/JSON do fornecedor. Usada pela tela e pelo gancho de entrada (n8n). Usuário vem de c.get("user"). */
+export async function importSupplier(c: any, input: unknown): Promise<{ status: number; body: Record<string, unknown> }> {
+  const p = supplierImportSchema.safeParse(input);
+  if (!p.success) return { status: 400, body: { error: "invalid_input", issues: p.error.issues } };
   const conn = await ownConn(c, p.data.connectionId, "supplier");
-  if (!conn) return c.json({ error: "not_found" }, 404);
+  if (!conn) return { status: 404, body: { error: "not_found" } };
   let raws: unknown[];
   let mapping = CSV_MAP;
-  let source: "csv" | "json" = p.data.format;
+  const source: "csv" | "json" = p.data.format;
   if (p.data.format === "csv") {
     const table = parseCsv(p.data.data);
     const header = (table.shift() ?? []).map((h) => h.trim().toLowerCase());
-    for (const need of ["external_id", "name"]) if (!header.includes(need)) return c.json({ error: "missing_columns", required: ["external_id", "name", "cost_price"] }, 400);
-    if (!header.includes("cost_price") && !header.includes("variant_cost")) return c.json({ error: "missing_columns", required: ["external_id", "name", "cost_price"] }, 400);
+    const need = { error: "missing_columns", required: ["external_id", "name", "cost_price"] };
+    for (const n of ["external_id", "name"]) if (!header.includes(n)) return { status: 400, body: need };
+    if (!header.includes("cost_price") && !header.includes("variant_cost")) return { status: 400, body: need };
     raws = groupVariantRows(table.map((r) => Object.fromEntries(header.map((h, i) => [h, (r[i] ?? "").trim()]))));
   } else {
-    let j: unknown;
-    try { j = JSON.parse(p.data.data); } catch { return c.json({ error: "invalid_json" }, 400); }
+    let j: any;
+    try { j = JSON.parse(p.data.data); } catch { return { status: 400, body: { error: "invalid_json" } }; }
     mapping = (JSON.parse(conn.config as string).mapping as SupplierMapping) ?? supplierMappingSchema.parse({});
-    raws = Array.isArray(j) ? j : (j as any)?.[mapping.items ?? "items"] ?? (j as any)?.data ?? (j as any)?.products ?? [];
-    if (!Array.isArray(raws)) return c.json({ error: "no_items_found" }, 400);
+    raws = Array.isArray(j) ? j : j?.[mapping.items ?? "items"] ?? j?.data ?? j?.products ?? [];
+    if (!Array.isArray(raws)) return { status: 400, body: { error: "no_items_found" } };
   }
-  if (raws.length > MAX_ROWS) return c.json({ error: "too_many_rows", max: MAX_ROWS }, 413);
+  if (raws.length > MAX_ROWS) return { status: 413, body: { error: "too_many_rows", max: MAX_ROWS } };
   const ok: SupplierProductInput[] = [];
   const errors: Array<{ row: number; error: string }> = [];
   raws.forEach((r, i) => {
@@ -256,13 +258,18 @@ integrations.post("/supplier/import", async (c) => {
     if (n.ok) ok.push(n.item);
     else errors.push({ row: i + 1, error: n.error });
   });
-  if (p.data.dryRun) return c.json({ dryRun: true, valid: ok.length, errors, sample: ok.slice(0, 3) });
+  if (p.data.dryRun) return { status: 200, body: { dryRun: true, valid: ok.length, errors, sample: ok.slice(0, 3) } };
   const res = await upsertProducts(c, conn.id as string, ok, source);
   await audit(c.env.DB, uid(c), "supplier.imported", conn.id as string, { ...res, errors: errors.length, format: p.data.format });
-  return c.json({ ...res, errors });
+  return { status: 200, body: { ...res, errors } };
+}
+
+integrations.post("/supplier/import", async (c) => {
+  const r = await importSupplier(c, await c.req.json().catch(() => null));
+  return c.json(r.body, r.status as any);
 });
 
-const blockedHost = (h: string) => h === "localhost" || /^\d+\.\d+\.\d+\.\d+$/.test(h) || h.includes(":") || !h.includes(".") || /\.(local|internal|localhost)$/i.test(h);
+export const blockedHost = (h: string) => h === "localhost" || /^\d+\.\d+\.\d+\.\d+$/.test(h) || h.includes(":") || !h.includes(".") || /\.(local|internal|localhost)$/i.test(h);
 
 integrations.post("/connections/:id/supplier/sync", async (c) => {
   const conn = await ownConn(c, c.req.param("id"), "supplier");

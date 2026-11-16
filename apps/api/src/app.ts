@@ -24,6 +24,7 @@ import { studio } from "./studio";
 import { integrations } from "./integrations";
 import { market } from "./market";
 import { orders } from "./orders";
+import { automation, inbound, unsubscribe } from "./automation";
 import { isBotUserAgent } from "@ai/shared";
 import type { AppBindings, Env, SessionUser } from "./types";
 
@@ -41,7 +42,8 @@ app.use("*", secureHeaders());
  * e, se houver Origin, ele deve ser o do app.
  */
 app.use("/api/*", async (c, next) => {
-  if (MUTATING.has(c.req.method)) {
+  // Gancho de entrada é chamado por servidor (n8n), sem cookie: autentica por token, então não usa o cabeçalho CSRF.
+  if (MUTATING.has(c.req.method) && !c.req.path.startsWith("/api/hooks/in/")) {
     if (c.req.header("x-requested-with") !== "fetch") {
       return c.json({ error: "csrf_header_missing" }, 403);
     }
@@ -276,7 +278,10 @@ async function exportOps(db: D1Database, userId: string) {
   const supplierProducts = await q("supplier_products");
   const listings = await q("marketplace_listings");
   const orderRows = await q("marketplace_orders");
-  return { programs, programHistory, programDocs, links, linkClicks, campaigns, commissions, adjustments, adDrafts, connections, supplierProducts, listings, orders: orderRows };
+  const notificationRows = await q("notifications");
+  const webhookRows = ((await db.prepare("SELECT id, label, url, events, active, created_at FROM webhook_endpoints WHERE user_id = ?").bind(userId).all()).results);
+  const inboundRows = ((await db.prepare("SELECT id, label, actions, created_at, last_used_at FROM inbound_hooks WHERE user_id = ?").bind(userId).all()).results);
+  return { programs, programHistory, programDocs, links, linkClicks, campaigns, commissions, adjustments, adDrafts, connections, supplierProducts, listings, orders: orderRows, notifications: notificationRows, webhooks: webhookRows, inboundHooks: inboundRows };
 }
 
 app.get("/api/me/export", requireUser, async (c) => {
@@ -396,6 +401,9 @@ app.route("/api/studio", studio);
 app.route("/api/integrations", integrations);
 app.route("/api/market", market);
 app.route("/api/orders", orders);
+app.route("/api/automation", automation);
+app.route("/api/hooks/in", inbound);
+app.route("/api/unsubscribe", unsubscribe);
 
 // ---------- Redirecionamento próprio (/r/:code) ----------
 // Só funciona para links "own_redirect" de programas que CONFIRMARAM permitir redirecionamento.

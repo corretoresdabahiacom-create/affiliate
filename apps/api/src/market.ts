@@ -1,3 +1,4 @@
+import { emitFrom, notify } from "./automation";
 import { Hono } from "hono";
 import { z } from "zod";
 import {
@@ -383,6 +384,7 @@ market.post("/listings/publish", async (c) => {
         await c.env.DB.prepare("UPDATE marketplace_listings SET update_status=NULL, last_error=NULL, last_synced_at=?, updated_at=? WHERE id=?").bind(now(), now(), id).run();
         await audit(c.env.DB, uid(c), "listing.updated_live", id, { provider: "shopee", itemId: r.external_item_id });
         results.push({ id, ok: true, itemId: r.external_item_id as string, updated: true });
+        await emitFrom(c, "listing.updated", { listingId: id, productName: r.product_name, itemId: r.external_item_id });
       } else {
         const hadItem = !!r.external_item_id;
         const itemId = await createOnShopee(c.env, creds, r);
@@ -390,6 +392,7 @@ market.post("/listings/publish", async (c) => {
         await c.env.DB.prepare("UPDATE marketplace_listings SET status='published', external_item_id=?, published_at=?, last_error=NULL, update_status=?, last_synced_at=?, updated_at=? WHERE id=?").bind(itemId, now(), hadItem ? "dirty" : null, now(), now(), id).run();
         await audit(c.env.DB, uid(c), "listing.published", id, { provider: "shopee", itemId });
         results.push({ id, ok: true, itemId });
+        await emitFrom(c, "listing.published", { listingId: id, productName: r.product_name, itemId });
       }
     } catch (e) {
       const msg = e instanceof shopee.ShopeeError ? `${e.code}: ${e.detail}` : "unexpected_error";
@@ -398,6 +401,7 @@ market.post("/listings/publish", async (c) => {
       results.push({ id, ok: false, error: msg });
     }
   }
+  await notify(c.env.DB, uid(c), "listing.publish", `Publicação na Shopee: ${results.filter((x) => x.ok).length} ok, ${results.filter((x) => !x.ok).length} com problema`, null, "/store").catch(() => undefined);
   return c.json({ results });
 });
 

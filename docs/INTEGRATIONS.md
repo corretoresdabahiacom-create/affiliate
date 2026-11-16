@@ -62,3 +62,7 @@ npx wrangler secret put CREDENTIALS_KEY
 ```
 
 Em desenvolvimento, coloque `CREDENTIALS_KEY=...` no `.dev.vars`. Configure a URL de retorno da Shopee (`APP_URL/api/integrations/shopee/callback`) no app da Open Platform.
+
+## Automações
+
+Webhooks, gancho de entrada, notificações e monitor de fontes estão em `docs/AUTOMATION.md`.

@@ -1,5 +1,16 @@
 # Changelog
 
+## Fase 7 — Integrações e automações (0.9.0)
+
+- Migration `0009_automation.sql`: `webhook_endpoints`, `webhook_deliveries`, `inbound_hooks`, `notifications`, `source_checks`; `alert_prefs` ganha `email_enabled`, `last_digest_at`, `last_event_at`.
+- Webhooks de saída assinados (HMAC-SHA256) com reenvio e desativação automática; gancho de entrada por token (`notify`, `supplier.import`).
+- Notificações internas, resumo por e-mail opt-in com cancelamento em 1 clique, evento `alert.new`.
+- Monitor de fontes oficiais: só avisa, nunca altera o catálogo.
+- Agendador de hora em hora (reenvio, resumos, monitor; estoque a cada 6 h; limpeza diária).
+- Telas `/automations` e `/notifications`. Documentação em `docs/AUTOMATION.md`.
+- Testes: shared 105, api 170, web 76; typecheck e build limpos.
+- Não verificado contra n8n/Resend reais. Sem conectores de redes de afiliados (sem documentação verificada).
+
 ## Fase 6 (parte 3) — Operação da loja (0.8.0)
 
 Pedido: implementar o que ficou de fora da parte 2.

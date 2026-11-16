@@ -15,6 +15,7 @@ import {
   type AdStatus,
 } from "@ai/shared";
 import { audit } from "./audit";
+import { emitFrom } from "./automation";
 import { PROGRAM_SELECT, staleDays, type Row } from "./catalog";
 import { docsFor, generate } from "./ai";
 import { requireRole, requireUser } from "./middleware";
@@ -280,7 +281,10 @@ studio.post("/ads/:id/status", async (c) => {
     if (issues.length) return c.json({ error: "text_issues", issues }, 422);
   }
   await c.env.DB.prepare("UPDATE ad_drafts SET status = ?, updated_at = ? WHERE id = ?").bind(to, now(), cur.id).run();
-  if (to === "approved") await audit(c.env.DB, uid(c), "ad.approved", cur.id as string, { channel: cur.channel_check });
+  if (to === "approved") {
+    await audit(c.env.DB, uid(c), "ad.approved", cur.id as string, { channel: cur.channel_check });
+    await emitFrom(c, "ad.approved", { adId: cur.id, title: cur.title, channel: cur.channel });
+  }
   return c.json({ item: adOut((await own(c))!) });
 });
 

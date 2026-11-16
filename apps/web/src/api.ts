@@ -263,6 +263,12 @@ export interface AttributeDef { id: number; name: string; mandatory: boolean; in
 export interface AttributeValue { attributeId: number; valueId?: number; customValue?: string }
 export interface SyncProposal { stock?: { from: number | null; to: number }; price?: { from: number; to: number }; models?: Array<{ key: string; stock?: { from: number | null; to: number }; price?: { from: number | undefined; to: number } }>; costChanged: boolean }
 export interface OrderItem { itemId: string; modelId: string | null; name: string | null; sku: string | null; quantity: number; price: number }
+export interface Webhook { id: string; label: string; url: string; events: string[]; active: boolean; consecutiveDead: number; lastDeliveryAt: number | null; createdAt: number }
+export interface WebhookDelivery { id: string; event: string; status: "pending" | "delivered" | "dead"; attempts: number; responseStatus: number | null; error: string | null; createdAt: number; deliveredAt: number | null }
+export interface InboundHook { id: string; label: string; actions: string[]; lastUsedAt: number | null; createdAt: number }
+export interface Notice { id: string; kind: string; title: string; body: string | null; link: string | null; createdAt: number; read: boolean }
+export interface MonitorItem { sourceId: string; programId: string; programName: string; url: string; lastStatus: number | null; failures: number; lastCheckedAt: number | null; changedAt: number | null }
+export const WEBHOOK_EVENT_LIST = ["listing.published", "listing.updated", "order.new", "ad.approved", "alert.new", "monitor.finding", "test.ping"] as const;
 export interface Order {
   id: string; connectionId: string; orderSn: string; status: string; orderedAt: number; currency: string; total: number | null; items: OrderItem[];
   trackingNumber: string | null; trackingStatus: string | null; trackingEvents: Array<{ at: number; description: string; status: string | null }>; trackingCheckedAt: number | null;
@@ -386,5 +392,19 @@ export const api = {
   orderSheet: (id: string) => request<SupplierSheet>("GET", `/api/orders/${id}/supplier-sheet`),
   orderPatch: (id: string, body: Record<string, unknown>) => request<{ item: Order }>("PATCH", `/api/orders/${id}`, body),
   orderTracking: (id: string) => request<{ item: Order }>("POST", `/api/orders/${id}/tracking/refresh`),
+  webhooks: () => request<{ items: Webhook[]; vaultReady: boolean }>("GET", "/api/automation/webhooks"),
+  webhookCreate: (body: { label: string; url: string; events: string[] }) => request<{ item: Webhook; secret: string }>("POST", "/api/automation/webhooks", body),
+  webhookPatch: (id: string, body: { active?: boolean }) => request<{ item: Webhook }>("PATCH", `/api/automation/webhooks/${id}`, body),
+  webhookDelete: (id: string) => request<{ ok: true }>("DELETE", `/api/automation/webhooks/${id}`),
+  webhookTest: (id: string) => request<{ status: string; responseStatus: number | null; error: string | null }>("POST", `/api/automation/webhooks/${id}/test`),
+  webhookDeliveries: (id: string) => request<{ items: WebhookDelivery[] }>("GET", `/api/automation/webhooks/${id}/deliveries`),
+  inboundList: () => request<{ items: InboundHook[] }>("GET", "/api/automation/inbound"),
+  inboundCreate: (body: { label: string; actions: string[] }) => request<{ item: InboundHook; token: string; url: string }>("POST", "/api/automation/inbound", body),
+  inboundDelete: (id: string) => request<{ ok: true }>("DELETE", `/api/automation/inbound/${id}`),
+  notices: () => request<{ items: Notice[]; unread: number; prefs: { emailEnabled: boolean; frequency: string }; emailAvailable: boolean }>("GET", "/api/automation/notifications"),
+  noticesRead: (ids?: string[]) => request<{ ok: true }>("POST", "/api/automation/notifications/read", ids ? { ids } : {}),
+  noticePrefs: (emailEnabled: boolean) => request<{ ok: true }>("PUT", "/api/automation/notifications/prefs", { emailEnabled }),
+  monitor: () => request<{ items: MonitorItem[] }>("GET", "/api/automation/monitor"),
+  monitorCheck: (programId: string) => request<{ checked: number; findings: string[] }>("POST", `/api/automation/monitor/check/${programId}`),
   adDelete: (id: string) => request<{ ok: true }>("DELETE", `/api/studio/ads/${id}`),
 };

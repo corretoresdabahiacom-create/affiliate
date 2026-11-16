@@ -57,3 +57,18 @@ export async function sendMagicLink(
   }
   return { delivered: true, provider: "resend" };
 }
+
+/** E-mail simples (resumos). Sem RESEND_API_KEY não envia e diz isso, para o chamador não marcar como enviado. */
+export async function sendMail(env: Env, to: string, subject: string, text: string): Promise<SendResult> {
+  if (!env.RESEND_API_KEY) return { delivered: false, provider: "log" };
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from: env.EMAIL_FROM, to, subject, text }),
+    });
+    return { delivered: res.ok, provider: "resend" };
+  } catch {
+    return { delivered: false, provider: "resend" };
+  }
+}

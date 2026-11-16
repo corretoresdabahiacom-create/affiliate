@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { normalizeOrder, orderSyncSchema, supplierOrderPatchSchema, supplierSheet, type OrderItem } from "@ai/shared";
 import { audit } from "./audit";
+import { emitFrom, notify } from "./automation";
 import type { Row } from "./catalog";
 import { ownConn, shopeeCreds, shopeeFail } from "./integrations";
 import { requireUser } from "./middleware";
@@ -55,8 +56,10 @@ orders.post("/sync", async (c) => {
           "INSERT INTO marketplace_orders (id, user_id, connection_id, order_sn, status, ordered_at, currency, total, items, supplier_status, synced_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
         ).bind(crypto.randomUUID(), uid(c), conn.id, o.orderSn, o.status, o.createdAt, o.currency, o.total, JSON.stringify(o.items), "not_placed", now()).run();
         created++;
+        await emitFrom(c, "order.new", { orderSn: o.orderSn, status: o.status, total: o.total, items: o.items.length });
       }
     }
+    if (created > 0) await notify(c.env.DB, uid(c), "order.new", `${created} novo(s) pedido(s) na Shopee`, null, "/orders");
     await audit(c.env.DB, uid(c), "orders.synced", conn.id as string, { created, updated, days: p.data.days });
     return c.json({ created, updated, days: p.data.days });
   } catch (e) {

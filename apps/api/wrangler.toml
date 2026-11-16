@@ -13,9 +13,9 @@ run_worker_first = ["/api/*", "/r/*"]
 [ai]
 binding = "AI"
 
-# Agendador: sincroniza estoque dos anúncios publicados (só para conexões com "estoque automático" ligado).
+# Agendador (de hora em hora): reenvio de webhooks, resumos por e-mail, monitor de fontes oficiais; a cada 6 h o estoque automático.
 [triggers]
-crons = ["17 */6 * * *"]
+crons = ["7 * * * *"]
 
 [[d1_databases]]
 binding = "DB"

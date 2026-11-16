@@ -188,10 +188,8 @@ intel.post("/alerts/seen", async (c) => {
  * Feed derivado do histórico imutável. Cada alerta traz o programa, a fonte oficial mais relevante
  * (quando existe) e a data da última verificação; sem fonte registrada, o front avisa.
  */
-intel.get("/alerts", async (c) => {
-  const user = c.get("user");
-  const prefs = await loadPrefs(c.env.DB, user.id);
-  const days = Math.min(Math.max(Number(c.req.query("days") ?? 30) || 30, 1), 90);
+export async function buildAlerts(db: D1Database, userId: string, days: number) {
+  const prefs = await loadPrefs(db, userId);
   const now = Date.now();
   const since = now - days * DAY;
   const enabled = prefs.categories.filter((k): k is Exclude<AlertCategory, "outdated"> => k !== "outdated" && k in CATEGORY_SQL);
@@ -213,7 +211,7 @@ intel.get("/alerts", async (c) => {
   const alerts: Alert[] = [];
 
   if (enabled.length) {
-    const { results } = await c.env.DB.prepare(
+    const { results } = await db.prepare(
       `SELECT h.id, h.program_id, h.field, h.old_value, h.new_value, h.changed_at, p.name, p.last_verified_at, a.name AS adv,
          (SELECT s.url FROM program_sources s WHERE s.program_id = h.program_id AND s.source_type IN ${OFFICIAL}
             ORDER BY (s.field = h.field) DESC, s.created_at DESC LIMIT 1) AS source_url
@@ -246,9 +244,9 @@ intel.get("/alerts", async (c) => {
   }
 
   if (prefs.categories.includes("outdated")) {
-    const stale = await staleDays(c.env.DB);
+    const stale = await staleDays(db);
     const limit = now - stale * DAY;
-    const { results } = await c.env.DB.prepare(
+    const { results } = await db.prepare(
       `SELECT p.id, p.name, p.last_verified_at, a.name AS adv,
          (SELECT s.url FROM program_sources s WHERE s.program_id = p.id AND s.source_type IN ${OFFICIAL} ORDER BY s.created_at DESC LIMIT 1) AS source_url
        FROM affiliate_programs p JOIN advertisers a ON a.id = p.advertiser_id
@@ -275,7 +273,12 @@ intel.get("/alerts", async (c) => {
     }
   }
   alerts.sort((a, b) => b.at - a.at);
-  return c.json({ alerts, unread: alerts.filter((a) => a.unread).length });
+  return { alerts, unread: alerts.filter((a) => a.unread).length };
+}
+
+intel.get("/alerts", async (c) => {
+  const days = Math.min(Math.max(Number(c.req.query("days") ?? 30) || 30, 1), 90);
+  return c.json(await buildAlerts(c.env.DB, c.get("user").id, days));
 });
 
 // ---------- Configuração de pontuação (administrador) ----------
