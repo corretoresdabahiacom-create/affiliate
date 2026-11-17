@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.12.0 — Fase 9: segurança e produção
+
+### Achados da auditoria (corrigidos)
+- **O backup padrão do D1 não funciona neste banco**: `wrangler d1 export` falha com "cannot export databases with Virtual Tables" por causa da busca FTS5. Criado backup/restauração próprios (`scripts/`), cifrados, com manifesto, conferência de contagens, reindexação da busca e verificação de chaves estrangeiras.
+- **Os cabeçalhos de segurança do Worker não chegavam ao frontend** (assets estáticos são servidos antes do Worker). Adicionado `apps/web/public/_headers` (CSP, HSTS, X-Frame-Options, Permissions-Policy, cache imutável dos assets com hash).
+- Sem limite de corpo nas requisições: limite de 2 MB (413 `payload_too_large`).
+- Consulta de cliques por usuário/período varria a tabela inteira; limpeza diária também. Migração `0012_perf_indexes.sql`.
+- Faltavam páginas de Privacidade e Termos (PT/EN/ES, públicas) e o contato do operador (Admin > Privacidade e termos).
+- `/api/health` não conferia o banco (agora devolve 503 se o D1 falhar).
+- A limpeza diária agora também apaga sessões vencidas, janelas de limite de taxa antigas, códigos de login vencidos e cliques com mais de 400 dias.
+- CI: ações atualizadas (checkout/setup-node/upload-artifact v7, runtime Node 24), auditoria de dependências (crítica bloqueia), backup antes das migrações, teste de fumaça pós-deploy, `permissions: contents: read`, fila única de deploy.
+
+### Novo
+- Testes: inventário de **todas** as rotas (exigem sessão; admin barra usuário comum), anti-CSRF, cabeçalhos, cookie, isolamento entre usuários, retenção, exclusão de conta, planos de consulta com `EXPLAIN QUERY PLAN` (16 consultas quentes sem varredura completa), consistência do backup.
+- Workflow `backup.yml`: backup semanal cifrado com **prova de restauração**.
+- Carregamento sob demanda das telas (a tela inicial baixa menos código).
+- Docs: `SECURITY.md`, `BACKUP.md`, `PRODUCTION.md`.
+
+### Decisões e limitações
+- zod permanece na 3.x: a 4.x foi testada e reescreve campos não enviados ao editar programas (`.partial()` mantém `.default()`), o que apagaria dados confirmados. Ver `docs/SECURITY.md`.
+- Privacidade/Termos são modelo: exigem revisão jurídica.
+- Backup/restauração testados localmente de ponta a ponta; **não** testados contra o D1 remoto (sem credenciais).
+- Sem 2FA nem teste de invasão externo.
+
 ## 0.11.0 — Fase 8: analytics e monetização
 
 ### Novo

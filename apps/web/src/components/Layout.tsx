@@ -131,7 +131,7 @@ export function Layout() {
       <main className="mx-auto max-w-5xl px-4 py-8">
         <Outlet />
       </main>
-      <footer className="mx-auto max-w-5xl px-4 pb-8 text-xs text-slate-500">{t("app.disclaimer")}</footer>
+      <footer className="mx-auto max-w-5xl px-4 pb-8 text-xs text-slate-500">{t("app.disclaimer")} · <NavLink className="underline" to="/privacy">{t("legal.privacy")}</NavLink> · <NavLink className="underline" to="/terms">{t("legal.terms")}</NavLink></footer>
     </div>
   );
 }

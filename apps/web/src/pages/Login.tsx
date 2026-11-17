@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, Link } from "react-router-dom";
 import { api, ApiError } from "../api";
 import { useAuth } from "../auth";
 import { LanguageSelect } from "../components/Layout";
@@ -79,7 +79,7 @@ export function Login() {
           </form>
         )}
       </div>
-      <p className="mt-4 text-center text-xs text-slate-500">{t("app.disclaimer")}</p>
+      <p className="mt-4 text-center text-xs text-slate-500">{t("app.disclaimer")} · <Link className="underline" to="/privacy">{t("legal.privacy")}</Link> · <Link className="underline" to="/terms">{t("legal.terms")}</Link></p>
     </div>
   );
 }

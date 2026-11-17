@@ -354,6 +354,7 @@ export const api = {
   adminGrant: (body: { userId: string; planId: string; months: number }) => request<{ ok: true }>("POST", "/api/admin/billing/grant", body),
   adminRefund: (id: string) => request<{ ok: true; subscriptionEnded: boolean }>("POST", `/api/admin/billing/payments/${id}/refund`),
   adminBillingSettings: (body: { trialDays?: number; graceDays?: number }) => request<{ ok: true; trialDays: number; graceDays: number }>("PUT", "/api/admin/billing/settings", body),
+  adminLegal: (body: { operatorName?: string; contactEmail?: string }) => request<{ ok: true }>("PUT", "/api/admin/legal", body),
   adminAudit: () => request<{ entries: AuditEntry[] }>("GET", "/api/admin/audit"),
   catalogMeta: () => request<CatalogMeta>("GET", "/api/catalog/meta"),
   programs: (query: string) => request<{ items: CatalogProgram[]; total: number }>("GET", `/api/catalog/programs?${query}`),

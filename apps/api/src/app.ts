@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
+import { bodyLimit } from "hono/body-limit";
 import { secureHeaders } from "hono/secure-headers";
 import { z } from "zod";
 import {
@@ -37,7 +38,21 @@ const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 export const app = new Hono<AppBindings>();
 
-app.use("*", secureHeaders());
+// Respostas da API: nada de conteúdo ativo, nada em cache compartilhado, HSTS em produção.
+app.use("*", secureHeaders({
+  contentSecurityPolicy: { defaultSrc: ["'none'"], frameAncestors: ["'none'"], baseUri: ["'none'"] },
+  strictTransportSecurity: "max-age=31536000; includeSubDomains",
+  permissionsPolicy: { camera: [], microphone: [], geolocation: [], payment: [] },
+}));
+app.use("/api/*", async (c, next) => {
+  await next();
+  if (!c.res.headers.has("cache-control")) c.res.headers.set("cache-control", "no-store");
+});
+/**
+ * Limite de corpo (2 MB): a maior entrada legítima é uma importação CSV (500 mil caracteres). Corpos enormes
+ * não chegam ao validador, o que também protege contra estouro de memória em validação de listas grandes.
+ */
+app.use("/api/*", bodyLimit({ maxSize: 2 * 1024 * 1024, onError: (c) => c.json({ error: "payload_too_large" }, 413) }));
 
 /**
  * Medidor de consultas ao D1 por requisição (limite do plano gratuito: 50).
@@ -82,7 +97,18 @@ const adminEmails = (env: Env) =>
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
 
-app.get("/api/health", (c) => c.json({ ok: true, environment: c.env.ENVIRONMENT }));
+app.get("/api/health", async (c) => {
+  // Confere o banco: um app "no ar" sem D1 não está saudável. Sem dados sensíveis na resposta.
+  const db = await c.env.DB.prepare("SELECT 1 AS ok").first<{ ok: number }>().then((r) => r?.ok === 1).catch(() => false);
+  return c.json({ ok: db, db, environment: c.env.ENVIRONMENT }, db ? 200 : 503);
+});
+
+// Quem opera o serviço (controlador dos dados) para as páginas de Privacidade e Termos. Definido pelo administrador.
+app.get("/api/legal", async (c) => {
+  const { results } = await c.env.DB.prepare("SELECT key, value FROM admin_settings WHERE key IN ('legal.operatorName','legal.contactEmail')").all<{ key: string; value: string }>();
+  const m = Object.fromEntries(results.map((r) => [r.key, r.value]));
+  return c.json({ operatorName: m["legal.operatorName"] ?? null, contactEmail: m["legal.contactEmail"] ?? null });
+});
 
 // ---------- Autenticação por link mágico ----------
 
@@ -366,6 +392,18 @@ admin.get("/audit", async (c) => {
     .bind(limit)
     .all();
   return c.json({ entries: results });
+});
+
+admin.put("/legal", async (c) => {
+  const p = z.object({ operatorName: z.string().trim().max(160).optional(), contactEmail: z.string().trim().toLowerCase().email().max(254).optional() }).safeParse(await c.req.json().catch(() => null));
+  if (!p.success) return c.json({ error: "invalid_input" }, 400);
+  const t = Date.now();
+  const stmts = Object.entries(p.data).map(([k, v]) =>
+    c.env.DB.prepare("INSERT INTO admin_settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at").bind(`legal.${k}`, v, t),
+  );
+  if (stmts.length) await c.env.DB.batch(stmts);
+  await audit(c.env.DB, c.get("user").id, "legal.updated", undefined, p.data as Record<string, unknown>);
+  return c.json({ ok: true });
 });
 
 const planUpdateSchema = z.object({

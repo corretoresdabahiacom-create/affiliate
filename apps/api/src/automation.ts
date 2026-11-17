@@ -535,4 +535,12 @@ export async function runAlertsPass(env: Env, at = now(), budget?: Budget | null
 export async function purgeOld(env: Env) {
   await env.DB.prepare("DELETE FROM webhook_deliveries WHERE status != 'pending' AND created_at < ?").bind(now() - 30 * DAY).run();
   await env.DB.prepare("DELETE FROM notifications WHERE read_at IS NOT NULL AND created_at < ?").bind(now() - 90 * DAY).run();
+  // Minimização de dados (LGPD): sessões e códigos vencidos, janelas de limite de taxa antigas, cliques com mais de 400 dias.
+  const t = now();
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM sessions WHERE expires_at < ?").bind(t),
+    env.DB.prepare("DELETE FROM login_tokens WHERE expires_at < ?").bind(t - DAY),
+    env.DB.prepare("DELETE FROM rate_limits WHERE window_start < ?").bind(t - 2 * DAY),
+    env.DB.prepare("DELETE FROM link_clicks WHERE at < ?").bind(t - 400 * DAY),
+  ]);
 }

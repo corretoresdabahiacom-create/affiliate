@@ -5,12 +5,15 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -18,19 +21,29 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      # Dependências de produção: crítica bloqueia; alta só avisa (ver docs/SECURITY.md sobre o zod 3 -> 4).
+      - name: Auditoria de dependências (crítica bloqueia)
+        run: npm audit --omit=dev --audit-level=critical --legacy-peer-deps
+      - name: Auditoria de dependências (alta, apenas aviso)
+        run: npm audit --omit=dev --audit-level=high --legacy-peer-deps || echo "::warning::Há vulnerabilidades altas em dependências de produção. Veja docs/SECURITY.md."
 
-  # A cada push na main: testa, aplica as migrations no D1 e publica o Worker
+  # A cada push na main: testa, faz backup, aplica as migrations no D1 e publica o Worker
   # (API + frontend estático) na Cloudflare. Exige os segredos abaixo no GitHub.
   deploy:
     needs: test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+      APP_URL: ${{ vars.APP_URL }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -42,9 +55,32 @@ jobs:
           fi
       - run: npm ci --legacy-peer-deps
       - run: npm run build
+      # Backup antes de qualquer migração (o banco de produção nunca é alterado sem cópia recente).
+      - name: Backup antes das migrações
+        run: |
+          if [ "${#BACKUP_PASSPHRASE}" -ge 20 ]; then
+            node scripts/backup-d1.mjs "$RUNNER_TEMP/pre-deploy.sql.gpg"
+          else
+            echo "::warning::BACKUP_PASSPHRASE ausente ou curta (< 20 caracteres): deploy sem backup prévio. Veja docs/BACKUP.md."
+          fi
+      - name: Guardar o backup cifrado
+        if: ${{ env.BACKUP_PASSPHRASE != '' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: backup-pre-deploy
+          path: ${{ runner.temp }}/pre-deploy.sql.gpg
+          retention-days: 14
+          if-no-files-found: ignore
       - name: Aplicar migrations no D1 (remoto)
         working-directory: apps/api
         run: npx wrangler d1 migrations apply affiliate-intelligence --remote
       - name: Publicar o Worker
         working-directory: apps/api
         run: npx wrangler deploy
+      # Teste de fumaça: saúde (inclui o banco) e cabeçalhos de segurança do frontend.
+      - name: Teste de fumaça
+        run: |
+          if [ -z "$APP_URL" ]; then echo "::warning::Defina a variável APP_URL no GitHub (Settings > Variables) para o teste de fumaça."; exit 0; fi
+          curl -fsS --retry 6 --retry-delay 5 --retry-all-errors "$APP_URL/api/health" | grep -q '"ok":true'
+          curl -fsSI --retry 3 "$APP_URL/" | grep -qi '^content-security-policy:'
+          echo "OK: /api/health e cabeçalhos de segurança."

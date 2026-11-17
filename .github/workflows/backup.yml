@@ -1,0 +1,44 @@
+name: Backup do banco (semanal)
+
+on:
+  schedule:
+    - cron: "17 5 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - name: Verificar segredos
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ] || [ "${#BACKUP_PASSPHRASE}" -lt 20 ]; then
+            echo "::error::Defina CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID e BACKUP_PASSPHRASE (>= 20 caracteres). Veja docs/BACKUP.md."
+            exit 1
+          fi
+      - run: npm ci --legacy-peer-deps
+      - name: Gerar backup cifrado
+        run: node scripts/backup-d1.mjs "$RUNNER_TEMP/backup.sql.gpg"
+      # Um backup que não restaura não é backup: restaura num banco local vazio e confere contagens, busca e chaves.
+      - name: Provar que o backup restaura
+        env:
+          D1_TARGET: --local
+          D1_EXTRA: --persist-to ${{ runner.temp }}/verify
+          RESTORE_CONFIRM: affiliate-intelligence
+        run: node scripts/restore-d1.mjs "$RUNNER_TEMP/backup.sql.gpg" affiliate-intelligence
+      - uses: actions/upload-artifact@v7
+        with:
+          name: backup-semanal
+          path: ${{ runner.temp }}/backup.sql.gpg
+          retention-days: 30

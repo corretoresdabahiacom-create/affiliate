@@ -9,7 +9,7 @@ import { BillingTab } from "./AdminBilling";
 
 const LIMIT_KEYS = ["savedPrograms", "links", "campaigns", "aiRequestsMonthly", "reports"] as const;
 
-type Tab = "users" | "plans" | "billing" | "audit" | "scoring" | "ai";
+type Tab = "users" | "plans" | "billing" | "legal" | "audit" | "scoring" | "ai";
 
 export function Admin() {
   const { t } = useI18n();
@@ -38,6 +38,7 @@ export function Admin() {
         {tabBtn("users", t("admin.users"))}
         {tabBtn("plans", t("admin.plans"))}
         {tabBtn("billing", t("admin.billing"))}
+        {tabBtn("legal", t("admin.legal"))}
         {tabBtn("audit", t("admin.audit"))}
         {tabBtn("scoring", t("admin.scoring"))}
         {tabBtn("ai", t("admin.ai"))}
@@ -45,6 +46,7 @@ export function Admin() {
       {tab === "users" && <UsersTab />}
       {tab === "plans" && <PlansTab />}
       {tab === "billing" && <BillingTab />}
+      {tab === "legal" && <LegalTab />}
       {tab === "audit" && <AuditTab />}
       {tab === "scoring" && <ScoringTab />}
       {tab === "ai" && <AiTab />}
@@ -226,5 +228,27 @@ function AuditTab() {
         </tbody>
       </table>
     </div>
+  );
+}
+
+function LegalTab() {
+  const { t } = useI18n();
+  const [name, setName] = useState("");
+  const [mail, setMail] = useState("");
+  const [msg, setMsg] = useState<string | null>(null);
+  useEffect(() => { fetch("/api/legal").then((r) => r.json()).then((d) => { setName(d.operatorName ?? ""); setMail(d.contactEmail ?? ""); }).catch(() => undefined); }, []);
+  const save = async () => {
+    setMsg(null);
+    try { await api.adminLegal({ ...(name.trim() ? { operatorName: name.trim() } : {}), ...(mail.trim() ? { contactEmail: mail.trim() } : {}) }); setMsg(t("common.saved")); } catch { setMsg(t("err.generic")); }
+  };
+  return (
+    <section className="card space-y-3">
+      <p className="text-sm text-slate-600">{t("admin.legal.help")}</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div><label className="label" htmlFor="lg-name">{t("admin.legal.name")}</label><input id="lg-name" className="input" maxLength={160} value={name} onChange={(e) => setName(e.target.value)} /></div>
+        <div><label className="label" htmlFor="lg-mail">{t("admin.legal.email")}</label><input id="lg-mail" type="email" className="input" value={mail} onChange={(e) => setMail(e.target.value)} /></div>
+      </div>
+      <div className="flex items-center gap-3"><button className="btn" onClick={save}>{t("admin.savePlan")}</button>{msg && <span role="status" className="text-sm">{msg}</span>}</div>
+    </section>
   );
 }

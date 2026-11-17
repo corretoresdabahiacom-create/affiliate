@@ -71,3 +71,10 @@ Se os segredos não existirem, o job de deploy falha com uma mensagem explicando
 - Rode as migrações (`0011_billing.sql`) antes do deploy. Ela define limites iniciais nos planos que ainda estavam sem limites: usuários existentes no plano Free que já passaram deles continuam com seus dados, mas não criam mais itens até o administrador ajustar os limites em Admin > Planos.
 - Defina os preços dos planos em Admin > Planos (ficam vazios por padrão; plano sem preço não pode ser assinado).
 - Sem novas variáveis de ambiente. O passo de cobrança roda no mesmo cron de 10 minutos.
+
+## Fase 9: segredos, variáveis e verificações do deploy
+- Segredos do GitHub (Settings > Secrets and variables > Actions): `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `BACKUP_PASSPHRASE` (≥ 20 caracteres; guarde uma cópia fora do GitHub).
+- Variável do GitHub: `APP_URL` (endereço público em HTTPS), usada no teste de fumaça (`/api/health` com `"ok":true` e cabeçalho CSP em `/`).
+- Migrações: até `0012_perf_indexes.sql`.
+- O deploy faz, nesta ordem: testes e auditoria de dependências, backup cifrado (se houver `BACKUP_PASSPHRASE`), migrações, publicação, teste de fumaça.
+- Backup semanal com prova de restauração: `.github/workflows/backup.yml`. Veja `docs/BACKUP.md`, `docs/SECURITY.md` e `docs/PRODUCTION.md`.

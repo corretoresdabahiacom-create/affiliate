@@ -1198,6 +1198,16 @@ const ptBR = {
   "notice.billing.expired.body": "Sem pagamento dentro da carência, você voltou ao plano Free. Seus dados foram mantidos.",
   "notice.billing.refunded": "Pagamento reembolsado",
   "notice.billing.refunded.body": "O plano pago foi encerrado e você voltou ao plano Free.",
+  "legal.privacy": "Privacidade",
+  "legal.terms": "Termos",
+  "legal.back": "Voltar ao app",
+  "legal.operatorUnset": "o operador do serviço (ainda não informado)",
+  "legal.contactUnset": "(contato ainda não informado)",
+  "legal.unset": "O operador ainda não informou nome e contato. Esta é uma versão de teste.",
+  "admin.legal": "Privacidade e termos",
+  "admin.legal.help": "Nome e contato do responsável pelos dados, exibidos nas páginas públicas de Privacidade e Termos. O texto é um modelo: revise com assessoria jurídica antes de operar comercialmente.",
+  "admin.legal.name": "Nome do operador (pessoa ou empresa)",
+  "admin.legal.email": "E-mail de contato de privacidade",
 } as const;
 
 export type MessageKey = keyof typeof ptBR;
@@ -2401,6 +2411,16 @@ const enUS: Dict = {
   "notice.billing.expired.body": "With no payment within the grace period, you are back on the Free plan. Your data was kept.",
   "notice.billing.refunded": "Payment refunded",
   "notice.billing.refunded.body": "The paid plan ended and you are back on the Free plan.",
+  "legal.privacy": "Privacy",
+  "legal.terms": "Terms",
+  "legal.back": "Back to the app",
+  "legal.operatorUnset": "the service operator (not yet provided)",
+  "legal.contactUnset": "(contact not yet provided)",
+  "legal.unset": "The operator has not provided a name and contact yet. This is a test version.",
+  "admin.legal": "Privacy and terms",
+  "admin.legal.help": "Name and contact of the party responsible for the data, shown on the public Privacy and Terms pages. The text is a template: have it reviewed by legal counsel before operating commercially.",
+  "admin.legal.name": "Operator name (person or company)",
+  "admin.legal.email": "Privacy contact email",
 };
 
 const es: Dict = {
@@ -3601,6 +3621,16 @@ const es: Dict = {
   "notice.billing.expired.body": "Sin pago dentro de la gracia, volviste al plan Free. Tus datos se conservaron.",
   "notice.billing.refunded": "Pago reembolsado",
   "notice.billing.refunded.body": "El plan de pago terminó y volviste al plan Free.",
+  "legal.privacy": "Privacidad",
+  "legal.terms": "Términos",
+  "legal.back": "Volver a la app",
+  "legal.operatorUnset": "el operador del servicio (aún no informado)",
+  "legal.contactUnset": "(contacto aún no informado)",
+  "legal.unset": "El operador aún no informó nombre y contacto. Esta es una versión de prueba.",
+  "admin.legal": "Privacidad y términos",
+  "admin.legal.help": "Nombre y contacto del responsable de los datos, que se muestran en las páginas públicas de Privacidad y Términos. El texto es una plantilla: haz que lo revise un asesor jurídico antes de operar comercialmente.",
+  "admin.legal.name": "Nombre del operador (persona o empresa)",
+  "admin.legal.email": "Correo de contacto de privacidad",
 };
 
 export const MESSAGES: Record<Locale, Dict> = { "pt-BR": ptBR, "en-US": enUS, es };
