@@ -7,6 +7,7 @@ import {
   estimateTokens,
   fitChecks,
   parseSearchQuery,
+  planLimit,
   programFactDoc,
   resolveAiConfig,
   systemPrompt,
@@ -42,13 +43,14 @@ export async function loadAiConfig(db: D1Database): Promise<AiConfig> {
   }
 }
 
+const safeLimits = (s: string | null): Record<string, number> => { try { const v = JSON.parse(s ?? "{}"); return v && typeof v === "object" ? v : {}; } catch { return {}; } };
 const utcDayStart = (t: number) => t - (t % DAY);
 const utcMonthStart = (t: number) => {
   const d = new Date(t);
   return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1);
 };
 
-type Limit = "disabled" | "no_model" | "daily_requests" | "daily_tokens" | "monthly_global" | null;
+type Limit = "disabled" | "no_model" | "plan_monthly" | "daily_requests" | "daily_tokens" | "monthly_global" | null;
 
 /** Limites de custo: por usuário no dia e global no mês. Só chamadas reais ao modelo contam. */
 async function budget(env: Env, cfg: AiConfig, userId: string): Promise<{ limit: Limit; usedToday: number; tokensToday: number }> {
@@ -59,9 +61,17 @@ async function budget(env: Env, cfg: AiConfig, userId: string): Promise<{ limit:
     .bind(userId, utcDayStart(t))
     .first<{ n: number; tok: number }>();
   const g = await env.DB.prepare("SELECT COUNT(*) AS n FROM ai_usage WHERE mode = 'llm' AND at >= ?").bind(utcMonthStart(t)).first<{ n: number }>();
+  // Limite mensal do plano (Fase 8): só chamadas reais ao modelo contam; administradores não têm limite.
+  const pl = await env.DB.prepare("SELECT u.role, p.limits FROM users u LEFT JOIN plans p ON p.id = u.plan_id WHERE u.id = ?").bind(userId).first<{ role: string; limits: string | null }>();
+  const planCap = pl && pl.role !== "admin" ? planLimit(safeLimits(pl.limits), "aiRequestsMonthly") : null;
+  let monthUsed = 0;
+  if (planCap !== null) {
+    monthUsed = (await env.DB.prepare("SELECT COUNT(*) AS n FROM ai_usage WHERE user_id = ? AND mode = 'llm' AND at >= ?").bind(userId, utcMonthStart(t)).first<{ n: number }>())?.n ?? 0;
+  }
   let limit: Limit = null;
   if (!cfg.enabled) limit = "disabled";
   else if (!env.AI) limit = "no_model";
+  else if (planCap !== null && monthUsed >= planCap) limit = "plan_monthly";
   else if ((u?.n ?? 0) >= cfg.dailyRequestsPerUser) limit = "daily_requests";
   else if ((u?.tok ?? 0) >= cfg.dailyTokensPerUser) limit = "daily_tokens";
   else if ((g?.n ?? 0) >= cfg.monthlyRequestsGlobal) limit = "monthly_global";

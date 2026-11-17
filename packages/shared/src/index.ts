@@ -71,3 +71,4 @@ export * from "./studio";
 export * from "./market";
 export * from "./store";
 export * from "./automation";
+export * from "./analytics";

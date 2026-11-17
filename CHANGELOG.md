@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.11.0 — Fase 8: analytics e monetização
+
+### Novo
+- **Rentabilidade por campanha** (`/api/analytics/profitability`, tela Relatórios): ROI realizado (só comissão aprovada/paga), ROI projetado (inclui pendente e estimada, nunca apresentado como recebido), EPC e taxa de conversão sobre cliques do redirecionamento próprio. Sem custo ou sem cliques o indicador é `null` (traço na tela). Moedas diferentes nunca se misturam; comissão em outra moeda fica fora do ROI e é sinalizada. Reembolsos e estornos entram líquidos.
+- **Relatórios** (`/api/analytics/report`): séries por dia/semana/mês, por programa e pendentes/estimadas por idade (0-30, 31-60, 61-90, 90+) para cobrar a rede após o período de validação. Exportação CSV com proteção contra injeção de fórmula. Recurso `reports` controlado pelo plano.
+- **Assinaturas e pagamentos** (`/api/billing`, tela Plano): teste gratuito (dias configuráveis, uma vez por usuário), renovação, cancelamento ao fim do período, inadimplência com carência configurável e volta ao Free sem apagar dados. Pagamento é registrado pelo administrador (manual, idempotente por comprovante), com cortesia e reembolso.
+- **Limites por plano** aplicados em programas salvos, links, campanhas, consultas mensais à IA e relatórios; editáveis em Admin > Planos. Chave ausente = ilimitado, 0 = desligado, administrador sem limite. Resposta `402 plan_limit`.
+- **Receita no Admin**: receita mensal recorrente (preço de tabela das assinaturas ativas), recebido em 30 dias, por status; sempre por moeda.
+- Passo `billing` no agendador (a cada 10 min, fatia de 10% do orçamento): trial acabou, período venceu, carência acabou; avisos por notificação traduzida.
+- Exportação LGPD inclui assinatura e pagamentos.
+
+### Banco
+`0011_billing.sql`: `subscriptions`, `payments` (índice único por provedor+comprovante) e limites iniciais dos planos (somente se ainda `{}`). Preços continuam vazios até o administrador definir.
+
+### Limitações
+- Nenhum gateway integrado (exige análise de custos, disponibilidade, requisitos legais e aprovação explícita). Não há cobrança automática nem Pix/cartão.
+- Mudança de plano com assinatura ativa exige cancelar antes (sem pró-rata).
+- O limite de IA por plano não tem teste de ponta a ponta (o ambiente de teste não tem Workers AI).
+- Excluir a conta apaga também os pagamentos (cascata); retenção fiscal deve ser avaliada antes de operar comercialmente.
+
 ## 0.10.0 — Auditoria: limites do plano gratuito e correções
 
 ### Erro principal encontrado

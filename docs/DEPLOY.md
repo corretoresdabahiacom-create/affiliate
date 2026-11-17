@@ -66,3 +66,8 @@ Se os segredos não existirem, o job de deploy falha com uma mensagem explicando
 - **Login funciona mas o link não chega:** falta `RESEND_API_KEY` ou o remetente não está verificado no provedor.
 - **403 `origin_not_allowed`:** `APP_URL` não é igual à URL pela qual você acessa o app.
 - **Erros `D1` após muito uso:** o plano gratuito tem limites diários de leitura e escrita; veja `docs/ARCHITECTURE.md`.
+
+## Fase 8 (0.11.0)
+- Rode as migrações (`0011_billing.sql`) antes do deploy. Ela define limites iniciais nos planos que ainda estavam sem limites: usuários existentes no plano Free que já passaram deles continuam com seus dados, mas não criam mais itens até o administrador ajustar os limites em Admin > Planos.
+- Defina os preços dos planos em Admin > Planos (ficam vazios por padrão; plano sem preço não pode ser assinado).
+- Sem novas variáveis de ambiente. O passo de cobrança roda no mesmo cron de 10 minutos.

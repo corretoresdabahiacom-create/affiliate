@@ -27,6 +27,8 @@ import { StoreBuilder } from "./pages/StoreBuilder";
 import { Seasonal } from "./pages/Seasonal";
 import { AdStudio } from "./pages/AdStudio";
 import { Assistant } from "./pages/Assistant";
+import { Billing } from "./pages/Billing";
+import { Reports } from "./pages/Reports";
 
 /** Exige sessão; quem ainda não fez o onboarding é levado a ele. */
 function Protected({ children, requireOnboarded = true }: { children: React.ReactNode; requireOnboarded?: boolean }) {
@@ -62,6 +64,8 @@ export function App() {
         <Route path="/integrations" element={<Protected><Integrations /></Protected>} />
         <Route path="/automations" element={<Protected><Automations /></Protected>} />
         <Route path="/notifications" element={<Protected><Notifications /></Protected>} />
+        <Route path="/billing" element={<Protected><Billing /></Protected>} />
+        <Route path="/reports" element={<Protected><Reports /></Protected>} />
         <Route path="/orders" element={<Protected><Orders /></Protected>} />
         <Route path="/store" element={<Protected><StoreBuilder /></Protected>} />
         <Route path="/seasonal" element={<Protected><Seasonal /></Protected>} />

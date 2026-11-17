@@ -86,3 +86,6 @@ Todas as tabelas novas têm `user_id ... ON DELETE CASCADE` (`source_checks` é 
 - Conectores de redes de afiliados (Awin, Impact, etc.): não há documentação nem credencial verificadas aqui, e o projeto não inventa integração. O caminho para dados de redes é importar CSV/JSON pelo gancho de entrada ou pela tela.
 - Publicação direta em Instagram, YouTube, WhatsApp etc.: fica a cargo do fluxo que você montar no n8n a partir do evento `ad.approved`. O sistema só entrega o texto aprovado.
 - Nada disso foi testado contra um n8n real nem contra o Resend real; os testes simulam as respostas.
+
+## Cobrança no agendador (0.11.0)
+Cada execução também chama `runBilling` (fatia de 10% das consultas ao D1): encerra testes vencidos, move períodos vencidos para `past_due` e expira os que passaram da carência, 40 assinaturas por vez, em lote. Ver `docs/MONETIZATION.md`.

@@ -16,6 +16,10 @@ export function errorMessage(
       const fields = ((e.data.fields as string[] | undefined) ?? []).map((f) => fieldLabel(t, f)).join(", ");
       return t("err.official_source_required", { fields: fields || "—" });
     }
+    if (e.code === "plan_limit") {
+      const k = `billing.limit.${String(e.data.key)}`;
+      return t("err.plan_limit", { limit: Number(e.data.limit ?? 0), what: k in MESSAGES["pt-BR"] ? t(k as MessageKey) : String(e.data.key) });
+    }
     if (e.code.startsWith("duplicate_")) return t("err.duplicate");
     if (e.code === "unofficial_source_cannot_confirm") return t("err.unofficial");
     if (`err.${e.code}` in MESSAGES["pt-BR"]) return t(`err.${e.code}` as MessageKey);

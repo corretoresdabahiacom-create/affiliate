@@ -31,6 +31,8 @@ beforeAll(async () => {
   await call(`/api/admin/users/${ed.id}/role`, { method: "PATCH", body: { role: "editor" }, cookie: admin });
   advId = (await call("/api/catalog/advertisers", { method: "POST", body: { name: "Ops Corp" }, cookie: editor })).body.id;
   other = await login("other@example.com");
+  // Os limites do plano Free têm testes próprios (billing.test.ts); aqui o plano é ilimitado.
+  await call("/api/admin/plans/free", { method: "PUT", body: { limits: {} }, cookie: admin });
   await call("/api/me/profile", { method: "PUT", body: profileBody(), cookie: user });
 });
 

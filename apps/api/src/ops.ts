@@ -25,6 +25,7 @@ import {
 import { audit } from "./audit";
 import { parseCsv, type Row } from "./catalog";
 import { loadConfig } from "./intel";
+import { checkPlanLimit } from "./billing";
 import { requireUser } from "./middleware";
 import type { AppBindings } from "./types";
 
@@ -99,6 +100,8 @@ ops.post("/programs", async (c) => {
   if (prog.lifecycle_status !== "active" && ACTIVE_APPLICATION.has(status)) return c.json({ error: "program_not_active" }, 409);
   const exists = await c.env.DB.prepare("SELECT id FROM user_programs WHERE user_id = ? AND program_id = ?").bind(uid(c), programId).first();
   if (exists) return c.json({ error: "already_saved", id: (exists as Row).id }, 409);
+  const over = await checkPlanLimit(c, "savedPrograms");
+  if (over) return over;
   const id = crypto.randomUUID();
   const t = now();
   await c.env.DB.batch([
@@ -285,6 +288,8 @@ ops.post("/campaigns", async (c) => {
   const parsed = campaignSchema.safeParse(await json(c));
   if (!parsed.success) return invalid(c, parsed.error.issues);
   const b = parsed.data;
+  const over = await checkPlanLimit(c, "campaigns");
+  if (over) return over;
   if (!(await programExists(c, b.programId))) return c.json({ error: "program_not_found" }, 404);
   const chk = await paidTrafficCheck(c, b.channel, b.programId);
   if (chk.block) return c.json({ error: chk.code }, 409);
@@ -391,6 +396,8 @@ ops.post("/links", async (c) => {
   const parsed = linkSchema.safeParse(await json(c));
   if (!parsed.success) return invalid(c, parsed.error.issues);
   const b = parsed.data;
+  const over = await checkPlanLimit(c, "links");
+  if (over) return over;
   if (b.programId && !(await programExists(c, b.programId))) return c.json({ error: "program_not_found" }, 404);
   if (!(await ownsProgramRef(c, "campaigns", b.campaignId))) return c.json({ error: "campaign_not_found" }, 404);
   if (b.trackingMode === "own_redirect") {

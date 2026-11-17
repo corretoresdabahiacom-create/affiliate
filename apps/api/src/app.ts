@@ -22,6 +22,8 @@ import { ops } from "./ops";
 import { ai } from "./ai";
 import { studio } from "./studio";
 import { integrations } from "./integrations";
+import { analytics } from "./analytics";
+import { adminBilling, billing } from "./billing";
 import { limitsFor, metered } from "./budget";
 import { market } from "./market";
 import { orders } from "./orders";
@@ -299,7 +301,9 @@ async function exportOps(db: D1Database, userId: string) {
   const notificationRows = await q("notifications");
   const webhookRows = ((await db.prepare("SELECT id, label, url, events, active, created_at FROM webhook_endpoints WHERE user_id = ?").bind(userId).all()).results);
   const inboundRows = ((await db.prepare("SELECT id, label, actions, created_at, last_used_at FROM inbound_hooks WHERE user_id = ?").bind(userId).all()).results);
-  return { programs, programHistory, programDocs, links, linkClicks, campaigns, commissions, adjustments, adDrafts, connections, supplierProducts, listings, orders: orderRows, notifications: notificationRows, webhooks: webhookRows, inboundHooks: inboundRows };
+  const subRow = (await db.prepare("SELECT plan_id, status, trial_ends_at, current_period_start, current_period_end, cancel_at_period_end, provider, created_at FROM subscriptions WHERE user_id = ?").bind(userId).first()) ?? null;
+  const payRows = (await db.prepare("SELECT plan_id, amount_cents, currency, status, provider, provider_ref, period_start, period_end, paid_at, created_at FROM payments WHERE user_id = ? ORDER BY created_at").bind(userId).all()).results;
+  return { programs, programHistory, programDocs, links, linkClicks, campaigns, commissions, adjustments, adDrafts, connections, supplierProducts, listings, orders: orderRows, subscription: subRow, payments: payRows, notifications: notificationRows, webhooks: webhookRows, inboundHooks: inboundRows };
 }
 
 app.get("/api/me/export", requireUser, async (c) => {
@@ -410,7 +414,10 @@ admin.put("/plans/:id", async (c) => {
   return c.json({ ok: true });
 });
 
+app.route("/api/admin/billing", adminBilling);
 app.route("/api/admin", admin);
+app.route("/api/billing", billing);
+app.route("/api/analytics", analytics);
 app.route("/api/catalog", catalog);
 app.route("/api/intel", intel);
 app.route("/api/ops", ops);

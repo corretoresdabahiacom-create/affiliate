@@ -1,6 +1,7 @@
 import { app } from "./app";
 import { processDeliveries, purgeOld, runAlertsPass, runMonitor } from "./automation";
 import { limitsFor, metered, share } from "./budget";
+import { runBilling } from "./billing";
 import { runAutoStock } from "./market";
 import type { Env } from "./types";
 
@@ -20,6 +21,7 @@ export async function runScheduled(env: Env, at = new Date()) {
   out.deliveries = await safe("deliveries", () => processDeliveries(menv, { budget: share(m.budget, Math.round(L.d1 * 0.3), Math.round(L.fetch * 0.3)) }));
   out.monitor = await safe("monitor", () => runMonitor(menv, 40, share(m.budget, Math.round(L.d1 * 0.25), Math.round(L.fetch * 0.3))));
   out.alerts = await safe("alerts", () => runAlertsPass(menv, Date.now(), share(m.budget, Math.round(L.d1 * 0.25), Math.round(L.fetch * 0.1))));
+  out.billing = await safe("billing", () => runBilling(menv, at.getTime(), share(m.budget, Math.round(L.d1 * 0.1), 0)));
   if (at.getUTCHours() === 3 && at.getUTCMinutes() < 10) out.purge = await safe("purge", () => purgeOld(menv));
   out.autoStock = await safe("autoStock", () => runAutoStock(menv, m.budget));
   out.d1 = m.budget.d1Used();

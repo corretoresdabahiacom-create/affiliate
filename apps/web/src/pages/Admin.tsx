@@ -5,8 +5,11 @@ import { useAuth } from "../auth";
 import { useI18n, type MessageKey } from "../i18n";
 import { ScoringTab } from "./ScoringTab";
 import { AiTab } from "./AiTab";
+import { BillingTab } from "./AdminBilling";
 
-type Tab = "users" | "plans" | "audit" | "scoring" | "ai";
+const LIMIT_KEYS = ["savedPrograms", "links", "campaigns", "aiRequestsMonthly", "reports"] as const;
+
+type Tab = "users" | "plans" | "billing" | "audit" | "scoring" | "ai";
 
 export function Admin() {
   const { t } = useI18n();
@@ -34,12 +37,14 @@ export function Admin() {
       <div className="flex gap-2">
         {tabBtn("users", t("admin.users"))}
         {tabBtn("plans", t("admin.plans"))}
+        {tabBtn("billing", t("admin.billing"))}
         {tabBtn("audit", t("admin.audit"))}
         {tabBtn("scoring", t("admin.scoring"))}
         {tabBtn("ai", t("admin.ai"))}
       </div>
       {tab === "users" && <UsersTab />}
       {tab === "plans" && <PlansTab />}
+      {tab === "billing" && <BillingTab />}
       {tab === "audit" && <AuditTab />}
       {tab === "scoring" && <ScoringTab />}
       {tab === "ai" && <AiTab />}
@@ -140,6 +145,7 @@ function PlansTab() {
       monthlyPriceCents: p.monthlyPriceCents,
       currency: p.currency,
       active: p.active,
+      limits: p.limits,
     });
     setSaved(p.id);
   }
@@ -172,6 +178,17 @@ function PlansTab() {
             <input type="checkbox" checked={p.active} onChange={(e) => patch(p.id, { active: e.target.checked })} />
             {t("admin.col.active")}
           </label>
+          <fieldset className="col-span-full grid gap-2 sm:grid-cols-5">
+            <legend className="label">{t("admin.limits")}</legend>
+            {LIMIT_KEYS.map((k) => (
+              <div key={k}>
+                <label className="label" htmlFor={`lim-${p.id}-${k}`}>{t(`billing.limit.${k}` as MessageKey)}</label>
+                <input id={`lim-${p.id}-${k}`} type="number" min={0} className="input" placeholder={t("billing.unlimited")} value={p.limits[k] ?? ""}
+                  onChange={(e) => { const next = { ...p.limits }; if (e.target.value === "") delete next[k]; else next[k] = Math.max(0, Math.floor(Number(e.target.value))); patch(p.id, { limits: next }); }} />
+              </div>
+            ))}
+            <p className="col-span-full text-xs text-slate-500">{t("admin.limits.help")}</p>
+          </fieldset>
           <div className="flex items-center gap-3">
             <button className="btn" onClick={() => save(p)}>{t("admin.savePlan")}</button>
             {saved === p.id && <span role="status" className="text-sm text-green-700">{t("common.saved")}</span>}

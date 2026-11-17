@@ -343,11 +343,11 @@ describe("resumo por e-mail e evento alert.new", () => {
 describe("agendador, exportação e exclusão", () => {
   it("runScheduled roda todas as tarefas dentro do orçamento; limpeza só na janela das 03h UTC", async () => {
     const r = await runScheduled(menv, new Date(Date.UTC(2026, 10, 12, 3, 7)));
-    expect(Object.keys(r).sort()).toEqual(["alerts", "autoStock", "d1", "deliveries", "fetch", "monitor", "purge"]);
+    expect(Object.keys(r).sort()).toEqual(["alerts", "autoStock", "billing", "d1", "deliveries", "fetch", "monitor", "purge"]);
     expect(r.d1 as number).toBeLessThanOrEqual(45);
     expect(r.fetch as number).toBeLessThanOrEqual(45);
     const r2 = await runScheduled(menv, new Date(Date.UTC(2026, 10, 12, 6, 7)));
-    expect(Object.keys(r2).sort()).toEqual(["alerts", "autoStock", "d1", "deliveries", "fetch", "monitor"]);
+    expect(Object.keys(r2).sort()).toEqual(["alerts", "autoStock", "billing", "d1", "deliveries", "fetch", "monitor"]);
     await env.DB.prepare("INSERT INTO notifications (id, user_id, kind, title, created_at, read_at) VALUES ('old1', ?, 'k', 't', 1, 2)").bind(meId).run();
     await runScheduled(menv, new Date(Date.UTC(2026, 10, 12, 3, 7)));
     expect(await env.DB.prepare("SELECT id FROM notifications WHERE id = 'old1'").first()).toBeNull();

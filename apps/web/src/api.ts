@@ -63,6 +63,49 @@ export interface AdminPlan {
   limits: Record<string, number>;
   active: boolean;
 }
+export interface BillingPlan { id: string; name: string; priceCents: number | null; currency: string; limits: Record<string, number> }
+export interface BillingInfo {
+  plan: { id: string; name: string; limits: Record<string, number> } | null;
+  usage: Record<string, number>;
+  subscription: { planId: string; status: string; trialEndsAt: number | null; currentPeriodStart: number | null; currentPeriodEnd: number | null; cancelAtPeriodEnd: boolean; graceUntil: number | null } | null;
+  plans: BillingPlan[];
+  payments: Array<{ id: string; planId: string; amountCents: number; currency: string; status: string; provider: string; periodStart: number | null; periodEnd: number | null; paidAt: number | null }>;
+  trialDays: number;
+  trialAvailable: boolean;
+  paymentMode: "manual";
+}
+export interface MoneyByStatus { estimated: number; pending: number; approved: number; paid: number; rejected: number }
+export interface CampaignProfit {
+  id: string; name: string; channel: string; status: string; currency: string; spend: number | null;
+  clicksOwnTracking: number; clicksReported: number | null; conversionsReported: number | null;
+  commissions: MoneyByStatus; realized: number; projected: number;
+  roiRealized: number | null; roiProjected: number | null; epcRealized: number | null;
+  confirmedConversions: number; conversionRate: number | null; otherCurrencies: string[];
+}
+export interface Profitability {
+  range: { from: number; to: number };
+  campaigns: CampaignProfit[];
+  totalsByCurrency: Array<{ currency: string; spend: number; realized: number; projected: number; roiRealized: number | null; roiProjected: number | null }>;
+  unattributedClicks: number;
+}
+export interface ReportData {
+  range: { from: number; to: number };
+  groupBy: string;
+  clicksOwnTracking: Array<{ period: string; clicks: number }>;
+  commissions: Array<{ period: string; status: string; currency: string; count: number; amount: number }>;
+  byProgram: Array<{ program: string; status: string; currency: string; count: number; amount: number }>;
+  aging: Array<{ bucket: string; status: string; currency: string; count: number; amount: number }>;
+}
+export interface RevenueOverview {
+  subscriptionsByStatus: Record<string, number>;
+  mrrByCurrency: Array<{ currency: string; cents: number; subscriptions: number }>;
+  paidLast30dByCurrency: Array<{ currency: string; cents: number; payments: number }>;
+  paidByMonth: Array<{ month: string; currency: string; cents: number }>;
+  endedLast30d: number;
+  refundedLast30d: number;
+  settings: { trialDays: number; graceDays: number };
+}
+export interface AdminPayment { id: string; userId: string; email: string; planId: string; amountCents: number; currency: string; status: string; provider: string; providerRef: string | null; paidAt: number | null; createdAt: number; note: string | null }
 export interface AuditEntry {
   id: number;
   userId: string | null;
@@ -298,6 +341,19 @@ export const api = {
   adminPlans: () => request<{ plans: AdminPlan[] }>("GET", "/api/admin/plans"),
   adminSavePlan: (id: string, body: Partial<Omit<AdminPlan, "id">>) =>
     request<{ ok: true }>("PUT", `/api/admin/plans/${id}`, body),
+  billing: () => request<BillingInfo>("GET", "/api/billing"),
+  billingSubscribe: (planId: string) => request<{ ok: true; status: string }>("POST", "/api/billing/subscribe", { planId }),
+  billingCancel: () => request<{ ok: true; effective: string }>("POST", "/api/billing/cancel"),
+  billingResume: () => request<{ ok: true }>("POST", "/api/billing/resume"),
+  profitability: (query = "") => request<Profitability>("GET", `/api/analytics/profitability${query ? `?${query}` : ""}`),
+  report: (query = "") => request<ReportData>("GET", `/api/analytics/report${query ? `?${query}` : ""}`),
+  adminRevenue: () => request<RevenueOverview>("GET", "/api/admin/billing/overview"),
+  adminPayments: () => request<{ items: AdminPayment[] }>("GET", "/api/admin/billing/payments"),
+  adminRecordPayment: (body: { userId: string; planId: string; amountCents: number; currency: string; providerRef?: string; note?: string }) =>
+    request<{ ok: true; duplicate: boolean }>("POST", "/api/admin/billing/payments", body),
+  adminGrant: (body: { userId: string; planId: string; months: number }) => request<{ ok: true }>("POST", "/api/admin/billing/grant", body),
+  adminRefund: (id: string) => request<{ ok: true; subscriptionEnded: boolean }>("POST", `/api/admin/billing/payments/${id}/refund`),
+  adminBillingSettings: (body: { trialDays?: number; graceDays?: number }) => request<{ ok: true; trialDays: number; graceDays: number }>("PUT", "/api/admin/billing/settings", body),
   adminAudit: () => request<{ entries: AuditEntry[] }>("GET", "/api/admin/audit"),
   catalogMeta: () => request<CatalogMeta>("GET", "/api/catalog/meta"),
   programs: (query: string) => request<{ items: CatalogProgram[]; total: number }>("GET", `/api/catalog/programs?${query}`),
