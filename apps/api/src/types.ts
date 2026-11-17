@@ -1,4 +1,5 @@
 import type { Role } from "@ai/shared";
+import type { Budget } from "./budget";
 
 export interface Env {
   DB: D1Database;
@@ -13,6 +14,10 @@ export interface Env {
   CREDENTIALS_KEY?: string;
   /** Workers AI (opcional). Sem ele, a IA responde só com os fatos do sistema. */
   AI?: { run(model: string, input: unknown): Promise<unknown> };
+  /** Só em testes: "1" faz qualquer requisição que passe do orçamento do plano gratuito falhar. */
+  STRICT_BUDGET?: string;
+  /** "paid" quando a conta da Cloudflare está no Workers Paid: os orçamentos por invocação ficam maiores. */
+  WORKER_PLAN?: string;
 }
 
 export interface SessionUser {
@@ -24,5 +29,5 @@ export interface SessionUser {
 
 export type AppBindings = {
   Bindings: Env;
-  Variables: { user: SessionUser; sessionHash: string };
+  Variables: { user: SessionUser; sessionHash: string; budget: Budget };
 };

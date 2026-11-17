@@ -22,6 +22,7 @@ import { ops } from "./ops";
 import { ai } from "./ai";
 import { studio } from "./studio";
 import { integrations } from "./integrations";
+import { limitsFor, metered } from "./budget";
 import { market } from "./market";
 import { orders } from "./orders";
 import { automation, inbound, unsubscribe } from "./automation";
@@ -35,6 +36,23 @@ const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 export const app = new Hono<AppBindings>();
 
 app.use("*", secureHeaders());
+
+/**
+ * Medidor de consultas ao D1 por requisição (limite do plano gratuito: 50).
+ * As rotas pesadas leem `c.get("budget")` para parar antes do limite. Em teste, STRICT_BUDGET=1 transforma
+ * qualquer excesso em erro, para que nenhuma rota nova estoure o limite sem ninguém perceber.
+ */
+app.use("*", async (c, next) => {
+  const m = metered(c.env.DB, limitsFor(c.env));
+  c.env = { ...c.env, DB: m.db };
+  c.set("budget", m.budget);
+  await next();
+  const used = m.budget.d1Used();
+  if (used > limitsFor(c.env).d1) {
+    console.warn(`[budget] ${c.req.method} ${c.req.path} fez ${used} consultas ao D1 (limite gratuito 50)`);
+    if (c.env.STRICT_BUDGET === "1") c.res = new Response(JSON.stringify({ error: "budget_exceeded", d1: used, path: c.req.path }), { status: 500, headers: { "content-type": "application/json" } });
+  }
+});
 
 /**
  * Proteção CSRF: o cookie é SameSite=Lax e toda requisição que altera dados

@@ -171,3 +171,26 @@ describe("notificações", () => {
     expect(await screen.findByText("1 fonte(s) verificada(s), 1 aviso(s).")).toBeInTheDocument();
   });
 });
+
+describe("correções da auditoria (web)", () => {
+  beforeEach(() => vi.unstubAllGlobals());
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("notificação aparece no idioma de quem lê, com os valores guardados; a vinda do n8n mostra o texto como veio", async () => {
+    mockFetch(base(meUser, (url) => {
+      if (url === "/api/automation/notifications") return { status: 200, body: { items: [
+        { id: "n1", kind: "order.new", title: "3 novo(s) pedido(s) na Shopee", body: null, link: "/orders", createdAt: 1, read: false, data: { n: 3 } },
+        { id: "n2", kind: "inbound.notify", title: "Fluxo rodou", body: null, link: null, createdAt: 2, read: false, data: null },
+        { id: "n3", kind: "monitor.source_changed", title: "Fonte oficial mudou: P", body: "x", link: "/programs/p", createdAt: 3, read: false, data: { program: "Programa X" } },
+      ], unread: 3, prefs: { emailEnabled: false, frequency: "daily" }, emailAvailable: true } };
+      if (url === "/api/automation/monitor") return { status: 200, body: { items: [] } };
+      return { status: 404, body: {} };
+    }));
+    renderApp("/notifications", "en-US");
+    expect(await screen.findByText("3 new Shopee order(s)")).toBeInTheDocument();
+    expect(screen.getByText("Official source changed: Programa X")).toBeInTheDocument();
+    expect(screen.getByText(/the catalog was not changed/)).toBeInTheDocument();
+    expect(screen.getByText("Fluxo rodou")).toBeInTheDocument();
+  });
+});
+

@@ -13,9 +13,9 @@ run_worker_first = ["/api/*", "/r/*"]
 [ai]
 binding = "AI"
 
-# Agendador (de hora em hora): reenvio de webhooks, resumos por e-mail, monitor de fontes oficiais; a cada 6 h o estoque automático.
+# Agendador (a cada 10 min): reenvio de webhooks, monitor de fontes, resumos e estoque automático, cada um dentro de uma fatia do orçamento da invocação.
 [triggers]
-crons = ["7 * * * *"]
+crons = ["*/10 * * * *"]
 
 [[d1_databases]]
 binding = "DB"

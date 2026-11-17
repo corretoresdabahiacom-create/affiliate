@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, type MonitorItem, type Notice } from "../api";
 import { errorMessage } from "../components/errors";
-import { useI18n } from "../i18n";
+import { useI18n, type MessageKey } from "../i18n";
 
 type Msg = { ok: boolean; text: string } | null;
 const Note = ({ m }: { m: Msg }) => (m ? <p role={m.ok ? "status" : "alert"} className={`text-sm ${m.ok ? "text-emerald-700" : "text-red-600"}`}>{m.text}</p> : null);
@@ -44,7 +44,20 @@ function Monitor() {
   );
 }
 
+/** Notificação no idioma de quem lê: usa `notice.<kind>` com os valores guardados; se não houver tradução, mostra o texto salvo. */
+function useNoticeText() {
+  const { t } = useI18n();
+  const has = (k: string) => t(k as MessageKey) !== k;
+  return (n: Notice) => {
+    const key = `notice.${n.kind}`;
+    if (!n.data || !has(key)) return { title: n.title, body: n.body };
+    const vars = Object.fromEntries(Object.entries(n.data).map(([k, v]) => [k, String(v ?? "")]));
+    return { title: t(key as MessageKey, vars), body: has(`${key}.body`) ? t(`${key}.body` as MessageKey, vars) : n.body };
+  };
+}
+
 export function Notifications() {
+  const text = useNoticeText();
   const { t, locale } = useI18n();
   const [items, setItems] = useState<Notice[]>([]);
   const [unread, setUnread] = useState(0);
@@ -65,8 +78,8 @@ export function Notifications() {
         <ul className="space-y-2">
           {items.map((n) => (
             <li key={n.id} className={`card ${n.read ? "opacity-70" : ""}`}>
-              <p className="font-medium">{n.title}</p>
-              {n.body && <p className="text-sm text-slate-600">{n.body}</p>}
+              <p className="font-medium">{text(n).title}</p>
+              {text(n).body && <p className="text-sm text-slate-600">{text(n).body}</p>}
               <p className="text-xs text-slate-500">{new Date(n.createdAt).toLocaleString(locale)}{n.link ? <> · <Link className="text-indigo-700 hover:underline" to={n.link} onClick={() => api.noticesRead([n.id]).catch(() => {})}>→</Link></> : null}</p>
             </li>
           ))}

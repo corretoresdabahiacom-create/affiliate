@@ -21,6 +21,7 @@ export default defineConfig(async () => {
             ENVIRONMENT: "development",
             APP_URL: "http://localhost:8787",
             ADMIN_EMAILS: "boss@example.com",
+            STRICT_BUDGET: "1",
           },
         },
       }),

@@ -45,7 +45,7 @@ function ImportBox({ conn }: { conn: Connection }) {
 }
 
 function ConnCard({ c, onChange }: { c: Connection; onChange: () => void }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [msg, setMsg] = useState<Msg>(null);
   const authorize = async () => {
     try { window.location.assign((await api.shopeeAuthUrl(c.id)).url); } catch (e) { setMsg({ ok: false, text: errorMessage(e, t) }); }
@@ -81,6 +81,9 @@ function ConnCard({ c, onChange }: { c: Connection; onChange: () => void }) {
         <div className="mt-2 space-y-1 border-t border-slate-100 pt-2">
           <label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={!!c.config.autoStock} onChange={(e) => toggleAuto(e.target.checked)} />{t("integ.autoStock")}</label>
           <p className="text-xs text-slate-500">{t("integ.autoStock.help")}</p>
+          {!c.config.autoStock && typeof c.config.autoStockPausedAt === "number" && (
+            <p role="alert" className="text-xs text-amber-800">{t("integ.autoStock.paused", { d: new Date(c.config.autoStockPausedAt).toLocaleString(locale) })}</p>
+          )}
         </div>
       )}
       {c.provider === "supplier" && <ImportBox conn={c} />}

@@ -1,9 +1,10 @@
 import { Hono } from "hono";
 import {
-  MAX_ATTEMPTS, backoffMs, classifyCheck, digestEmail, inboundBodySchema, inboundHookCreateSchema, normalizeContent, safeInternalLink, signPayload,
+  ALERT_CATEGORIES, MAX_ATTEMPTS, backoffMs, classifyCheck, digestEmail, inboundBodySchema, inboundHookCreateSchema, normalizeContent, safeInternalLink, signPayload,
   webhookCreateSchema, webhookPatchSchema, type CheckState, type Locale, type WebhookEvent,
 } from "@ai/shared";
 import { audit } from "./audit";
+import type { Budget } from "./budget";
 import type { Row } from "./catalog";
 import { blockedHost, importSupplier } from "./integrations";
 import { buildAlerts } from "./intel";
@@ -33,55 +34,125 @@ const urlAllowed = (raw: string) => { try { const u = new URL(raw); return u.pro
 
 // ---------- Notificações internas ----------
 
-export async function notify(db: D1Database, userId: string, kind: string, title: string, body?: string | null, link?: string | null) {
-  await db.prepare("INSERT INTO notifications (id, user_id, kind, title, body, link, created_at) VALUES (?,?,?,?,?,?,?)")
-    .bind(crypto.randomUUID(), userId, kind, title.slice(0, 120), body?.slice(0, 500) ?? null, safeInternalLink(link), now()).run();
+/**
+ * Notificação interna. `title`/`body` ficam como texto de reserva (português); `data` leva os valores para o
+ * front montar a frase no idioma de quem lê (chave `notice.<kind>`). Notificação vinda do n8n mostra o texto como veio.
+ */
+export const notifyStmt = (db: D1Database, userId: string, kind: string, title: string, body?: string | null, link?: string | null, data?: Record<string, unknown> | null) =>
+  db.prepare("INSERT INTO notifications (id, user_id, kind, title, body, link, created_at, data) VALUES (?,?,?,?,?,?,?,?)")
+    .bind(crypto.randomUUID(), userId, kind, title.slice(0, 120), body?.slice(0, 500) ?? null, safeInternalLink(link), now(), data ? JSON.stringify(data).slice(0, 2000) : null);
+export async function notify(db: D1Database, userId: string, kind: string, title: string, body?: string | null, link?: string | null, data?: Record<string, unknown> | null) {
+  await notifyStmt(db, userId, kind, title, body, link, data).run();
 }
 
 // ---------- Webhooks de saída ----------
 
 /** Enfileira o evento para cada endpoint ativo que o assina. A entrega acontece em processDeliveries (e o cron reenvia o que falhar). */
 export async function emit(env: Env, userId: string, event: WebhookEvent, data: Record<string, unknown>, ctx?: { waitUntil(p: Promise<unknown>): void } | null): Promise<number> {
-  const { results } = await env.DB.prepare("SELECT id, events FROM webhook_endpoints WHERE user_id = ? AND active = 1").bind(userId).all<Row>();
-  let n = 0;
-  for (const e of results) {
-    if (!j<string[]>(e.events, []).includes(event)) continue;
-    const id = crypto.randomUUID();
-    const payload = JSON.stringify({ id, event, createdAt: new Date().toISOString(), data });
-    await env.DB.prepare("INSERT INTO webhook_deliveries (id, user_id, endpoint_id, event, payload, next_attempt_at, created_at) VALUES (?,?,?,?,?,?,?)").bind(id, userId, e.id, event, payload, now(), now()).run();
-    n++;
-  }
-  if (n && ctx) ctx.waitUntil(processDeliveries(env, 20, userId).catch(() => undefined));
-  return n;
+  return emitMany(env, userId, [{ event, data }], ctx);
 }
-const tryEmit = (c: any, event: WebhookEvent, data: Record<string, unknown>, userId?: string) => {
-  let ctx: any = null;
-  try { ctx = c.executionCtx; } catch { /* sem contexto (testes) */ }
-  return emit(c.env, userId ?? uid(c), event, data, ctx).catch(() => 0);
-};
+
+/** Vários eventos de uma vez: 1 consulta para os endpoints + 1 db.batch() para enfileirar (cabe no orçamento da invocação). */
+export async function emitMany(env: Env, userId: string, events: Array<{ event: WebhookEvent; data: Record<string, unknown> }>, ctx?: { waitUntil(p: Promise<unknown>): void } | null, budget?: Budget | null): Promise<number> {
+  if (!events.length) return 0;
+  const { results } = await env.DB.prepare("SELECT id, events FROM webhook_endpoints WHERE user_id = ? AND active = 1").bind(userId).all<Row>();
+  const stmts: D1PreparedStatement[] = [];
+  for (const e of results) {
+    const subs = j<string[]>(e.events, []);
+    for (const ev of events) {
+      if (!subs.includes(ev.event)) continue;
+      const id = crypto.randomUUID();
+      const payload = JSON.stringify({ id, event: ev.event, createdAt: new Date().toISOString(), data: ev.data });
+      stmts.push(env.DB.prepare("INSERT INTO webhook_deliveries (id, user_id, endpoint_id, event, payload, next_attempt_at, created_at) VALUES (?,?,?,?,?,?,?)").bind(id, userId, e.id, ev.event, payload, now(), now()));
+    }
+  }
+  for (let i = 0; i < stmts.length; i += 100) await env.DB.batch(stmts.slice(i, i + 100));
+  // Entrega imediata depois da resposta. Ela ainda conta no orçamento desta invocação, então só tenta o que couber
+  // (cada entrega: ~3 consultas e 1 chamada externa); o resto sai no agendador.
+  if (stmts.length && ctx) {
+    const room = budget ? Math.min(10, Math.floor((budget.d1Left() - 2) / 3), budget.fetchLeft()) : 10;
+    if (room > 0) ctx.waitUntil(processDeliveries(env, { limit: room, userId, budget }).catch(() => undefined));
+  }
+  return stmts.length;
+}
+const ctxOf = (c: any) => { try { return c.executionCtx; } catch { return null; /* sem contexto (testes) */ } };
+const budgetOf = (c: any): Budget | null => { try { return c.get("budget") ?? null; } catch { return null; } };
+const tryEmit = (c: any, event: WebhookEvent, data: Record<string, unknown>, userId?: string) => emitMany(c.env, userId ?? uid(c), [{ event, data }], ctxOf(c), budgetOf(c)).catch(() => 0);
+export const emitManyFrom = (c: any, events: Array<{ event: WebhookEvent; data: Record<string, unknown> }>) => emitMany(c.env, uid(c), events, ctxOf(c), budgetOf(c)).catch(() => 0);
 export { tryEmit as emitFrom };
 
+/** O mesmo evento para vários usuários (ex.: todos os que seguem um programa): 1 consulta por 90 usuários + 1 lote. */
+export async function emitToUsers(env: Env, userIds: string[], event: WebhookEvent, data: Record<string, unknown>): Promise<number> {
+  const stmts: D1PreparedStatement[] = [];
+  for (let i = 0; i < userIds.length; i += 90) {
+    const part = userIds.slice(i, i + 90);
+    const { results } = await env.DB.prepare(`SELECT id, user_id, events FROM webhook_endpoints WHERE active = 1 AND user_id IN (${part.map(() => "?").join(",")})`).bind(...part).all<Row>();
+    for (const e of results) {
+      if (!j<string[]>(e.events, []).includes(event)) continue;
+      const id = crypto.randomUUID();
+      stmts.push(env.DB.prepare("INSERT INTO webhook_deliveries (id, user_id, endpoint_id, event, payload, next_attempt_at, created_at) VALUES (?,?,?,?,?,?,?)")
+        .bind(id, e.user_id, e.id, event, JSON.stringify({ id, event, createdAt: new Date().toISOString(), data }), now(), now()));
+    }
+  }
+  for (let i = 0; i < stmts.length; i += 100) await env.DB.batch(stmts.slice(i, i + 100));
+  return stmts.length;
+}
+
+/** Lê no máximo `max` bytes do corpo e descarta o resto (não baixa páginas enormes). */
+async function readCapped(res: Response, max: number): Promise<string> {
+  if (!res.body) return "";
+  const reader = res.body.getReader();
+  const parts: Uint8Array[] = [];
+  let size = 0;
+  while (size < max) {
+    const { done, value } = await reader.read();
+    if (done || !value) break;
+    parts.push(value);
+    size += value.byteLength;
+  }
+  await reader.cancel().catch(() => undefined);
+  const all = new Uint8Array(Math.min(size, max));
+  let off = 0;
+  for (const p of parts) { const take = Math.min(p.byteLength, all.byteLength - off); all.set(p.subarray(0, take), off); off += take; if (off >= all.byteLength) break; }
+  return new TextDecoder().decode(all);
+}
+
+/** Quando um endpoint é desligado (à mão ou por falhas), o que estava na fila dele não é mais tentado. */
+const dropPendingStmt = (db: D1Database, endpointId: string) =>
+  db.prepare("UPDATE webhook_deliveries SET status='dead', error='endpoint_inactive' WHERE endpoint_id = ? AND status = 'pending'").bind(endpointId);
+
+type DeliveryOpts = { limit?: number; userId?: string; onlyId?: string; budget?: Budget | null };
 /** Tenta entregar o que está vencido. Resposta 2xx = entregue; qualquer outra coisa gera nova tentativa com espera crescente, até MAX_ATTEMPTS. */
-export async function processDeliveries(env: Env, limit = 50, userId?: string): Promise<{ delivered: number; retried: number; dead: number }> {
+export async function processDeliveries(env: Env, opts: DeliveryOpts = {}): Promise<{ delivered: number; retried: number; dead: number }> {
   const stats = { delivered: 0, retried: 0, dead: 0 };
+  const budget = opts.budget ?? null;
+  // Cada entrega custa ~4 consultas e 1 chamada externa.
+  let limit = opts.limit ?? 50;
+  if (budget) limit = Math.min(limit, Math.floor((budget.d1Left() - 2) / 4), budget.fetchLeft());
+  if (limit <= 0) return stats;
   if (!(await vaultReady(env))) return stats;
+  const where = ["d.status = 'pending'", "e.active = 1", "d.next_attempt_at <= ?"];
+  const args: unknown[] = [now()];
+  if (opts.userId) { where.push("d.user_id = ?"); args.push(opts.userId); }
+  if (opts.onlyId) { where.push("d.id = ?"); args.push(opts.onlyId); }
   const { results } = await env.DB.prepare(
-    `SELECT d.*, e.url, e.secret_enc, e.active FROM webhook_deliveries d JOIN webhook_endpoints e ON e.id = d.endpoint_id
-     WHERE d.status = 'pending' AND d.next_attempt_at <= ? ${userId ? "AND d.user_id = ?" : ""} ORDER BY d.next_attempt_at LIMIT ?`,
-  ).bind(...[now(), ...(userId ? [userId] : []), limit]).all<Row>();
+    `SELECT d.*, e.url, e.secret_enc FROM webhook_deliveries d JOIN webhook_endpoints e ON e.id = d.endpoint_id
+     WHERE ${where.join(" AND ")} ORDER BY d.next_attempt_at LIMIT ?`,
+  ).bind(...args, limit).all<Row>();
   for (const d of results) {
+    if (budget && !budget.can(4, 1)) break;
     // reserva atômica: dois processos não enviam o mesmo evento
     const claim = await env.DB.prepare("UPDATE webhook_deliveries SET next_attempt_at = ? WHERE id = ? AND status = 'pending' AND next_attempt_at = ?").bind(now() + 120_000, d.id, d.next_attempt_at).run();
     if (!claim.meta.changes) continue;
     let status: number | null = null;
     let error: string | null = null;
     try {
-      if (!d.active) throw new Error("endpoint_inactive");
       if (!urlAllowed(d.url as string)) throw new Error("endpoint_not_allowed");
       const sec = await open<{ secret: string }>(env, d.secret_enc as string);
       if (!sec) throw new Error("secret_unavailable");
       const ts = Math.floor(now() / 1000);
       const body = d.payload as string;
+      budget?.spendFetch(1);
       const res = await fetch(d.url as string, {
         method: "POST",
         redirect: "manual",
@@ -90,25 +161,32 @@ export async function processDeliveries(env: Env, limit = 50, userId?: string): 
         body,
       });
       status = res.status;
+      await res.body?.cancel().catch(() => undefined); // não precisamos da resposta; libera a conexão
       if (!(res.status >= 200 && res.status < 300)) error = `http_${res.status}`;
     } catch (e) {
       error = (e as Error).message?.slice(0, 120) || "network_error";
     }
     const attempts = (d.attempts as number) + 1;
     if (!error) {
-      await env.DB.prepare("UPDATE webhook_deliveries SET status='delivered', attempts=?, response_status=?, error=NULL, delivered_at=? WHERE id=?").bind(attempts, status, now(), d.id).run();
-      await env.DB.prepare("UPDATE webhook_endpoints SET consecutive_dead=0, last_delivery_at=? WHERE id=?").bind(now(), d.endpoint_id).run();
+      await env.DB.batch([
+        env.DB.prepare("UPDATE webhook_deliveries SET status='delivered', attempts=?, response_status=?, error=NULL, delivered_at=? WHERE id=?").bind(attempts, status, now(), d.id),
+        env.DB.prepare("UPDATE webhook_endpoints SET consecutive_dead=0, last_delivery_at=? WHERE id=?").bind(now(), d.endpoint_id),
+      ]);
       stats.delivered++;
       continue;
     }
-    const wait = error === "endpoint_not_allowed" || error === "endpoint_inactive" ? null : backoffMs(attempts);
+    const wait = error === "endpoint_not_allowed" ? null : backoffMs(attempts);
     if (wait == null) {
       await env.DB.prepare("UPDATE webhook_deliveries SET status='dead', attempts=?, response_status=?, error=? WHERE id=?").bind(attempts, status, error, d.id).run();
-      const ep = await env.DB.prepare("UPDATE webhook_endpoints SET consecutive_dead = consecutive_dead + 1 WHERE id = ? RETURNING consecutive_dead, label, user_id").bind(d.endpoint_id).first<Row>();
+      const ep = await env.DB.prepare("UPDATE webhook_endpoints SET consecutive_dead = consecutive_dead + 1 WHERE id = ? AND active = 1 RETURNING consecutive_dead, label, user_id").bind(d.endpoint_id).first<Row>();
       stats.dead++;
       if (ep && (ep.consecutive_dead as number) >= 10) {
-        await env.DB.prepare("UPDATE webhook_endpoints SET active = 0 WHERE id = ?").bind(d.endpoint_id).run();
-        await notify(env.DB, ep.user_id as string, "webhook.disabled", `Webhook desativado: ${ep.label}`, "10 entregas seguidas falharam. Corrija o endereço e reative.", "/automations");
+        // Desliga uma vez só, avisa uma vez só e tira o resto da fila.
+        await env.DB.batch([
+          env.DB.prepare("UPDATE webhook_endpoints SET active = 0 WHERE id = ?").bind(d.endpoint_id),
+          dropPendingStmt(env.DB, d.endpoint_id as string),
+          notifyStmt(env.DB, ep.user_id as string, "webhook.disabled", `Webhook desativado: ${ep.label}`, "10 entregas seguidas falharam. Corrija o endereço e reative.", "/automations", { label: ep.label }),
+        ]);
       }
     } else {
       await env.DB.prepare("UPDATE webhook_deliveries SET attempts=?, next_attempt_at=?, response_status=?, error=? WHERE id=?").bind(attempts, now() + wait, status, error, d.id).run();
@@ -156,6 +234,7 @@ automation.patch("/webhooks/:id", async (c) => {
   const d = p.data;
   await c.env.DB.prepare("UPDATE webhook_endpoints SET label=?, events=?, active=?, consecutive_dead=? WHERE id=?")
     .bind(d.label ?? e.label, d.events ? JSON.stringify([...new Set(d.events)]) : e.events, d.active === undefined ? e.active : d.active ? 1 : 0, d.active ? 0 : e.consecutive_dead, e.id).run();
+  if (d.active === false) await dropPendingStmt(c.env.DB, e.id as string).run();
   return c.json({ item: epOut((await ownEndpoint(c))!) });
 });
 
@@ -175,7 +254,8 @@ automation.post("/webhooks/:id/test", async (c) => {
   const id = crypto.randomUUID();
   const payload = JSON.stringify({ id, event: "test.ping", createdAt: new Date().toISOString(), data: { message: "ping" } });
   await c.env.DB.prepare("INSERT INTO webhook_deliveries (id, user_id, endpoint_id, event, payload, next_attempt_at, created_at) VALUES (?,?,?,?,?,?,?)").bind(id, uid(c), e.id, "test.ping", payload, now(), now()).run();
-  await processDeliveries(c.env, 5, uid(c));
+  if (!e.active) return c.json({ error: "endpoint_inactive" }, 409);
+  await processDeliveries(c.env, { onlyId: id, budget: c.get("budget") });
   const d = await c.env.DB.prepare("SELECT status, attempts, response_status, error FROM webhook_deliveries WHERE id = ?").bind(id).first<Row>();
   return c.json({ status: d?.status, responseStatus: d?.response_status, error: d?.error });
 });
@@ -218,10 +298,15 @@ export const inbound = new Hono<AppBindings>();
 inbound.post("/:id", async (c) => {
   const id = c.req.param("id");
   const token = (c.req.header("authorization") ?? "").replace(/^Bearer\s+/i, "");
-  if (!(await allow(c.env.DB, `inbound:${id}`, 60, 60))) return c.json({ error: "rate_limited" }, 429);
-  const h = await c.env.DB.prepare("SELECT * FROM inbound_hooks WHERE id = ?").bind(id).first<Row>();
+  const ip = c.req.header("cf-connecting-ip") ?? "unknown";
+  // Formato inválido nem chega ao banco; falhas são limitadas por IP (quem não tem o token não esgota a cota do dono).
+  const h = /^[0-9a-f-]{36}$/.test(id) && token ? await c.env.DB.prepare("SELECT * FROM inbound_hooks WHERE id = ?").bind(id).first<Row>() : null;
   // mesma resposta para gancho inexistente e token errado
-  if (!h || !token || (await sha256hex(token)) !== h.token_hash) return c.json({ error: "unauthorized" }, 401);
+  if (!h || (await sha256hex(token)) !== h.token_hash) {
+    if (!(await allow(c.env.DB, `inbound-fail:${ip}`, 20, 60))) return c.json({ error: "rate_limited" }, 429);
+    return c.json({ error: "unauthorized" }, 401);
+  }
+  if (!(await allow(c.env.DB, `inbound:${id}`, 60, 60))) return c.json({ error: "rate_limited" }, 429);
   const body = inboundBodySchema.safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: "invalid_input", issues: body.error.issues }, 400);
   if (!j<string[]>(h.actions, []).includes(body.data.action)) return c.json({ error: "action_not_allowed" }, 403);
@@ -242,7 +327,7 @@ automation.get("/notifications", async (c) => {
   const u = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM notifications WHERE user_id = ? AND read_at IS NULL").bind(uid(c)).first<{ n: number }>();
   const pr = await c.env.DB.prepare("SELECT email_enabled, frequency FROM alert_prefs WHERE user_id = ?").bind(uid(c)).first<Row>();
   return c.json({
-    items: results.map((r) => ({ id: r.id, kind: r.kind, title: r.title, body: r.body, link: r.link, createdAt: r.created_at, read: r.read_at != null })),
+    items: results.map((r) => ({ id: r.id, kind: r.kind, title: r.title, body: r.body, link: r.link, createdAt: r.created_at, read: r.read_at != null, data: j<Record<string, unknown> | null>(r.data, null) })),
     unread: u?.n ?? 0,
     prefs: { emailEnabled: !!pr?.email_enabled, frequency: (pr?.frequency as string) ?? "daily" },
     emailAvailable: !!c.env.RESEND_API_KEY && !!c.env.CLICK_SALT,
@@ -265,7 +350,7 @@ automation.put("/notifications/prefs", async (c) => {
   await c.env.DB.prepare(
     `INSERT INTO alert_prefs (user_id, categories, frequency, seen_at, updated_at, email_enabled, last_digest_at, last_event_at) VALUES (?, ?, 'daily', 0, ?, ?, ?, ?)
      ON CONFLICT(user_id) DO UPDATE SET email_enabled = excluded.email_enabled, updated_at = excluded.updated_at, last_digest_at = CASE WHEN excluded.email_enabled = 1 AND alert_prefs.email_enabled = 0 THEN excluded.last_digest_at ELSE alert_prefs.last_digest_at END`,
-  ).bind(uid(c), JSON.stringify(["new_programs", "new_products", "discontinued_products", "commission_changes", "rule_changes", "recurring", "now_accepts_brazil", "closed", "broken_links", "outdated"]), now(), b.emailEnabled ? 1 : 0, now(), now()).run();
+  ).bind(uid(c), JSON.stringify([...ALERT_CATEGORIES]), now(), b.emailEnabled ? 1 : 0, now(), now()).run();
   await audit(c.env.DB, uid(c), b.emailEnabled ? "notify.email_on" : "notify.email_off", uid(c));
   return c.json({ ok: true });
 });
@@ -277,7 +362,7 @@ unsubscribe.get("/", async (c) => {
   const u = c.req.query("u") ?? "";
   if (!c.env.CLICK_SALT || !u || c.req.query("sig") !== (await unsubSig(c.env, u))) return c.text("Link inválido.", 400);
   await c.env.DB.prepare("UPDATE alert_prefs SET email_enabled = 0 WHERE user_id = ?").bind(u).run();
-  return c.text("Pronto: você não receberá mais estes e-mails. / Done: you will no longer receive these emails.");
+  return c.text("Pronto: você não receberá mais estes e-mails.\nDone: you will no longer receive these emails.\nListo: ya no recibirá estos correos.");
 });
 
 // ---------- Monitor de fontes oficiais ----------
@@ -291,9 +376,9 @@ async function fetchSource(url: string): Promise<{ status: number | null; hash: 
     if (!urlAllowed(cur)) return { status: null, hash: null };
     try {
       const res = await fetch(cur, { redirect: "manual", signal: AbortSignal.timeout(8000), headers: { "user-agent": UA, accept: "text/html,*/*" } });
-      if (res.status >= 300 && res.status < 400 && res.headers.get("location")) { cur = new URL(res.headers.get("location")!, cur).toString(); continue; }
-      if (res.status < 200 || res.status >= 300) return { status: res.status, hash: null };
-      const text = (await res.text()).slice(0, 1_000_000);
+      if (res.status >= 300 && res.status < 400 && res.headers.get("location")) { await res.body?.cancel().catch(() => undefined); cur = new URL(res.headers.get("location")!, cur).toString(); continue; }
+      if (res.status < 200 || res.status >= 300) { await res.body?.cancel().catch(() => undefined); return { status: res.status, hash: null }; }
+      const text = await readCapped(res, 1_000_000);
       return { status: res.status, hash: await sha256hex(normalizeContent(text)) };
     } catch {
       return { status: null, hash: null };
@@ -316,27 +401,42 @@ async function checkSource(env: Env, s: Row): Promise<string | null> {
   const { results: followers } = await env.DB.prepare("SELECT user_id FROM user_programs WHERE program_id = ?").bind(s.program_id).all<Row>();
   const title = { source_changed: `Fonte oficial mudou: ${s.program_name}`, source_down: `Fonte oficial fora do ar: ${s.program_name}`, source_back: `Fonte oficial voltou: ${s.program_name}` }[finding.kind];
   const body = finding.kind === "source_changed" ? "O texto da página oficial mudou. Revise as regras e a comissão antes de divulgar; o catálogo não foi alterado." : "Verifique a página oficial.";
-  for (const f of followers) {
-    await notify(env.DB, f.user_id as string, `monitor.${finding.kind}`, title, body, `/programs/${s.program_id}`);
-    await emit(env, f.user_id as string, "monitor.finding", { kind: finding.kind, programId: s.program_id, programName: s.program_name, sourceUrl: s.url });
-  }
+  const users = followers.map((f) => f.user_id as string);
+  // Avisos e eventos de todos os seguidores em lote (poucas consultas, qualquer que seja o número de seguidores).
+  for (let i = 0; i < users.length; i += 100) await env.DB.batch(users.slice(i, i + 100).map((u) => notifyStmt(env.DB, u, `monitor.${finding.kind}`, title, body, `/programs/${s.program_id}`, { program: s.program_name })));
+  await emitToUsers(env, users, "monitor.finding", { kind: finding.kind, programId: s.program_id, programName: s.program_name, sourceUrl: s.url });
   return finding.kind;
 }
 
-/** Cron: até `limit` fontes oficiais de programas seguidos, as mais antigas primeiro, no máximo 1 vez por 24 h cada. */
-export async function runMonitor(env: Env, limit = 40): Promise<{ checked: number; findings: number }> {
+/**
+ * Uma mesma página costuma estar cadastrada como fonte de vários campos do programa: verifica uma vez só
+ * (a fonte "representante" é a de menor id entre as do mesmo programa com a mesma URL).
+ */
+const REPRESENTATIVE = `s.id = (SELECT MIN(s2.id) FROM program_sources s2 WHERE s2.program_id = s.program_id AND s2.url = s.url AND s2.source_type IN ${OFFICIAL_TYPES})`;
+
+/** Cron: até `limit` páginas oficiais de programas seguidos, as mais antigas primeiro, no máximo 1 vez por 24 h cada. */
+export async function runMonitor(env: Env, limit = 40, budget?: Budget | null): Promise<{ checked: number; findings: number }> {
+  // Cada página: ~4 consultas (+ avisos em lote) e até 4 chamadas externas (redirecionamentos).
+  if (budget) limit = Math.min(limit, Math.floor((budget.d1Left() - 1) / 6), Math.floor(budget.fetchLeft() / 4));
+  if (limit <= 0) return { checked: 0, findings: 0 };
   const { results } = await env.DB.prepare(
     `SELECT s.id, s.url, s.program_id, p.name AS program_name FROM program_sources s
        JOIN affiliate_programs p ON p.id = s.program_id
        LEFT JOIN source_checks k ON k.source_id = s.id
-      WHERE s.source_type IN ${OFFICIAL_TYPES} AND p.lifecycle_status = 'active'
+      WHERE s.source_type IN ${OFFICIAL_TYPES} AND p.lifecycle_status = 'active' AND ${REPRESENTATIVE}
         AND EXISTS (SELECT 1 FROM user_programs up WHERE up.program_id = s.program_id)
         AND (k.last_checked_at IS NULL OR k.last_checked_at < ?)
       ORDER BY COALESCE(k.last_checked_at, 0) ASC LIMIT ?`,
   ).bind(now() - DAY + 60_000, limit).all<Row>();
   let findings = 0;
-  for (const s of results) if (await checkSource(env, s)) findings++;
-  return { checked: results.length, findings };
+  let checked = 0;
+  for (const s of results) {
+    if (budget && !budget.can(6, 4)) break;
+    budget?.spendFetch(4);
+    checked++;
+    if (await checkSource(env, s)) findings++;
+  }
+  return { checked, findings };
 }
 
 automation.get("/monitor", async (c) => {
@@ -345,7 +445,7 @@ automation.get("/monitor", async (c) => {
        FROM user_programs up JOIN affiliate_programs p ON p.id = up.program_id
        JOIN program_sources s ON s.program_id = p.id AND s.source_type IN ${OFFICIAL_TYPES}
        LEFT JOIN source_checks k ON k.source_id = s.id
-      WHERE up.user_id = ? ORDER BY p.name LIMIT 100`,
+      WHERE up.user_id = ? AND ${REPRESENTATIVE} ORDER BY p.name LIMIT 100`,
   ).bind(uid(c)).all<Row>();
   return c.json({ items: results.map((r) => ({ sourceId: r.id, programId: r.program_id, programName: r.program_name, url: r.url, lastStatus: r.last_status, failures: r.failures ?? 0, lastCheckedAt: r.last_checked_at, changedAt: r.changed_at })) });
 });
@@ -356,60 +456,77 @@ automation.post("/monitor/check/:programId", async (c) => {
   if (!(await allow(c.env.DB, `monitor-check:${uid(c)}`, 6, 60))) return c.json({ error: "rate_limited" }, 429);
   const { results } = await c.env.DB.prepare(
     `SELECT s.id, s.url, s.program_id, p.name AS program_name FROM program_sources s JOIN affiliate_programs p ON p.id = s.program_id
-      WHERE s.program_id = ? AND s.source_type IN ${OFFICIAL_TYPES} LIMIT 5`,
+      WHERE s.program_id = ? AND s.source_type IN ${OFFICIAL_TYPES} AND ${REPRESENTATIVE} LIMIT 5`,
   ).bind(c.req.param("programId")).all<Row>();
+  const seen = new Set<string>();
   const out: Array<string | null> = [];
-  for (const s of results) out.push(await checkSource(c.env, s));
-  return c.json({ checked: results.length, findings: out.filter(Boolean) });
+  for (const s of results) { if (seen.has(s.url as string)) continue; seen.add(s.url as string); out.push(await checkSource(c.env, s)); }
+  return c.json({ checked: out.length, findings: out.filter(Boolean) });
 });
 
 // ---------- Resumo por e-mail e evento alert.new (cron) ----------
 
 /**
- * Passa pelos usuários com e-mail ligado ou com webhook de alerta.
+ * Passa pelos usuários com e-mail vencido ou com webhook de alerta, um pouco por execução (orçamento),
+ * em rodízio: quem foi visto há mais tempo vem primeiro (`pass_at`).
  * E-mail: respeita a frequência de alert_prefs; só marca como enviado se o provedor aceitou.
- * Evento alert.new: um lote por passada, com o que apareceu desde o último marco.
+ * Evento alert.new: um lote com o que apareceu desde o último marco. O marco é o relógio desta passada
+ * (`at`), e só entra o que foi registrado até ele: nada sai duas vezes nem fica de fora.
  */
-export async function runAlertsPass(env: Env, at = now()): Promise<{ emails: number; events: number }> {
-  const out = { emails: 0, events: 0 };
+export async function runAlertsPass(env: Env, at = now(), budget?: Budget | null): Promise<{ emails: number; events: number; users: number }> {
+  const out = { emails: 0, events: 0, users: 0 };
+  const hook = `EXISTS (SELECT 1 FROM webhook_endpoints w WHERE w.user_id = u.id AND w.active = 1 AND w.events LIKE '%"alert.new"%')`;
+  const gap = `CASE COALESCE(a.frequency, 'daily') WHEN 'instant' THEN 0 WHEN 'weekly' THEN ${7 * DAY - 3_600_000} ELSE ${DAY - 3_600_000} END`;
+  const emailDue = env.RESEND_API_KEY && env.CLICK_SALT ? `(COALESCE(a.email_enabled, 0) = 1 AND ?1 - COALESCE(a.last_digest_at, 0) >= ${gap})` : "0";
+  // ~9 consultas e 1 chamada externa por usuário.
+  let limit = 200;
+  if (budget) limit = Math.min(limit, Math.floor((budget.d1Left() - 1) / 9));
+  if (limit <= 0) return out;
   const { results } = await env.DB.prepare(
-    `SELECT u.id, u.email, COALESCE(pr.locale, 'pt-BR') AS locale, a.email_enabled, a.frequency, a.last_digest_at, a.last_event_at,
-            EXISTS (SELECT 1 FROM webhook_endpoints w WHERE w.user_id = u.id AND w.active = 1 AND w.events LIKE '%"alert.new"%') AS has_hook
+    `SELECT u.id, u.email, COALESCE(pr.locale, 'pt-BR') AS locale, a.email_enabled, a.frequency, a.last_digest_at, a.last_event_at, ${hook} AS has_hook
        FROM users u LEFT JOIN user_profiles pr ON pr.user_id = u.id LEFT JOIN alert_prefs a ON a.user_id = u.id
-      WHERE COALESCE(a.email_enabled, 0) = 1 OR EXISTS (SELECT 1 FROM webhook_endpoints w WHERE w.user_id = u.id AND w.active = 1 AND w.events LIKE '%"alert.new"%')
-      LIMIT 200`,
-  ).all<Row>();
+      WHERE ${emailDue} OR ${hook}
+      ORDER BY COALESCE(a.pass_at, 0) ASC LIMIT ?2`,
+  ).bind(at, limit).all<Row>();
   for (const u of results) {
+    if (budget && !budget.can(9, 1)) break;
+    out.users++;
     const userId = u.id as string;
     const { alerts } = await buildAlerts(env.DB, userId, 8);
-    const real = alerts.filter((a) => a.category !== "outdated");
+    const real = alerts.filter((a) => a.category !== "outdated" && a.at <= at);
+    let cursor = (u.last_event_at as number | null) || 0;
     if (u.has_hook) {
-      const cursor = (u.last_event_at as number | null) || 0;
-      if (cursor === 0) {
-        await env.DB.prepare("INSERT INTO alert_prefs (user_id, categories, frequency, seen_at, updated_at, last_event_at) VALUES (?, ?, 'daily', 0, ?, ?) ON CONFLICT(user_id) DO UPDATE SET last_event_at = excluded.last_event_at").bind(userId, JSON.stringify(["new_programs", "new_products", "discontinued_products", "commission_changes", "rule_changes", "recurring", "now_accepts_brazil", "closed", "broken_links", "outdated"]), at, at).run();
-      } else {
-        const fresh = real.filter((a) => a.at > cursor).slice(0, 20);
+      if (cursor > 0) {
+        const fresh = real.filter((a) => a.at > cursor);
         if (fresh.length) {
-          await emit(env, userId, "alert.new", { alerts: fresh.map((a) => ({ programId: a.programId, programName: a.programName, category: a.category, field: a.field, oldValue: a.oldValue, newValue: a.newValue, at: a.at, sourceUrl: a.sourceUrl })) });
+          const shown = fresh.slice(0, 20);
+          await emit(env, userId, "alert.new", {
+            total: fresh.length,
+            truncated: fresh.length > shown.length,
+            alerts: shown.map((a) => ({ programId: a.programId, programName: a.programName, category: a.category, field: a.field, oldValue: a.oldValue, newValue: a.newValue, at: a.at, sourceUrl: a.sourceUrl })),
+          });
           out.events++;
         }
-        await env.DB.prepare("UPDATE alert_prefs SET last_event_at = ? WHERE user_id = ?").bind(at, userId).run();
       }
+      cursor = at; // 1ª passada só marca o ponto de partida
     }
-    if (u.email_enabled && env.RESEND_API_KEY && env.CLICK_SALT) {
-      const gap = { instant: 0, daily: DAY - 3_600_000, weekly: 7 * DAY - 3_600_000 }[u.frequency as "instant" | "daily" | "weekly"] ?? DAY;
-      const last = u.last_digest_at as number;
-      if (at - last < gap) continue;
+    let digestAt = u.last_digest_at as number | null;
+    const gapMs = { instant: 0, daily: DAY - 3_600_000, weekly: 7 * DAY - 3_600_000 }[(u.frequency as "instant" | "daily" | "weekly") ?? "daily"] ?? DAY - 3_600_000;
+    if (u.email_enabled && env.RESEND_API_KEY && env.CLICK_SALT && at - ((u.last_digest_at as number) ?? 0) >= gapMs) {
+      const last = (u.last_digest_at as number) ?? 0;
       const fresh = real.filter((a) => a.at > last);
-      if (!fresh.length) continue;
-      const url = `${env.APP_URL}/api/unsubscribe?u=${userId}&sig=${await unsubSig(env, userId)}`;
-      const mail = digestEmail(u.locale as Locale, fresh.map((a) => ({ programName: a.programName, advertiser: a.advertiser, category: a.category, sourceUrl: a.sourceUrl })), url);
-      const r = await sendMail(env, u.email as string, mail.subject, mail.text);
-      if (r.delivered) {
-        await env.DB.prepare("UPDATE alert_prefs SET last_digest_at = ? WHERE user_id = ?").bind(at, userId).run();
-        out.emails++;
+      if (fresh.length) {
+        const url = `${env.APP_URL}/api/unsubscribe?u=${userId}&sig=${await unsubSig(env, userId)}`;
+        const mail = digestEmail(u.locale as Locale, fresh.map((a) => ({ programName: a.programName, advertiser: a.advertiser, category: a.category, sourceUrl: a.sourceUrl })), url);
+        budget?.spendFetch(1);
+        const r = await sendMail(env, u.email as string, mail.subject, mail.text);
+        if (r.delivered) { digestAt = at; out.emails++; }
       }
     }
+    await env.DB.prepare(
+      `INSERT INTO alert_prefs (user_id, categories, frequency, seen_at, updated_at, last_event_at, last_digest_at, pass_at) VALUES (?, ?, 'daily', 0, ?, ?, ?, ?)
+       ON CONFLICT(user_id) DO UPDATE SET last_event_at = excluded.last_event_at, last_digest_at = excluded.last_digest_at, pass_at = excluded.pass_at`,
+    ).bind(userId, JSON.stringify([...ALERT_CATEGORIES]), at, cursor, digestAt ?? 0, at).run();
   }
   return out;
 }

@@ -12,3 +12,10 @@ export async function audit(
     .bind(userId, action, target ?? null, metadata ? JSON.stringify(metadata) : null, Date.now())
     .run();
 }
+
+/** Mesma linha de auditoria, como instrução para entrar num db.batch() (economiza consultas por invocação). */
+export function auditStmt(db: D1Database, userId: string | null, action: string, target?: string, metadata?: Record<string, unknown>): D1PreparedStatement {
+  return db
+    .prepare("INSERT INTO audit_logs (user_id, action, target, metadata, created_at) VALUES (?, ?, ?, ?, ?)")
+    .bind(userId, action, target ?? null, metadata ? JSON.stringify(metadata) : null, Date.now());
+}

@@ -203,3 +203,42 @@ describe("estoque automático", () => {
     await waitFor(() => expect(body).toEqual({ autoStock: true }));
   });
 });
+
+describe("publicação em etapas (orçamento do servidor)", () => {
+  beforeEach(() => vi.unstubAllGlobals());
+  afterEach(() => vi.unstubAllGlobals());
+  it("repete a chamada com o que ficou pendente até terminar e soma os resultados", async () => {
+    const calls: string[][] = [];
+    const approved = [1, 2, 3].map((i) => ext({ id: `l${i}`, productName: `Produto ${i}`, status: "approved", issues: [] }));
+    mockFetch(storeHandler(approved, (url, init) => {
+      if (url === "/api/market/listings/publish") {
+        const ids = JSON.parse(String(init!.body)).listingIds as string[];
+        calls.push(ids);
+        const [first, ...rest] = ids;
+        return { status: 200, body: { results: [{ id: first, ok: true, itemId: `9${first}` }], pendingIds: rest, remaining: rest.length } };
+      }
+      return { status: 404, body: {} };
+    }));
+    renderApp("/store");
+    await userEvent.click(await screen.findByRole("button", { name: /Publicar 3/ }));
+    await waitFor(() => expect(calls).toEqual([["l1", "l2", "l3"], ["l2", "l3"], ["l3"]]));
+    await waitFor(() => expect(document.body.textContent).toMatch(/3 publicado\(s\), 0 com falha/));
+  });
+});
+
+describe("disjuntor do estoque automático (web)", () => {
+  beforeEach(() => vi.unstubAllGlobals());
+  afterEach(() => vi.unstubAllGlobals());
+  it("mostra que a sincronização foi pausada e por quê", async () => {
+    const paused = { ...shop, config: { ...(shop as any).config, autoStock: false, autoStockPausedAt: 1700000000000 } };
+    mockFetch(base(meUser, (url) => {
+      if (url === "/api/integrations/status") return { status: 200, body: { vaultReady: true, hosts: [] } };
+      if (url === "/api/integrations/connections") return { status: 200, body: { items: [paused] } };
+      return { status: 404, body: {} };
+    }));
+    renderApp("/integrations");
+    expect(await screen.findByText(/Pausado em .*zeraria boa parte da loja/)).toBeInTheDocument();
+    expect((screen.getByRole("checkbox", { name: "Sincronizar estoque automaticamente" }) as HTMLInputElement).checked).toBe(false);
+  });
+});
+

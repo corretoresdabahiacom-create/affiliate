@@ -49,3 +49,7 @@ Para uso real com clientes, o Workers Paid (a partir de US$ 5 por mês) remove o
 - **Fase 4:** gestão do afiliado (programas salvos, inscrições, links, campanhas, comissões manuais).
 - **Eventos de alto volume (Fase 8):** cliques no Analytics Engine e agregação diária no D1; nunca uma linha por clique.
 - **Rate limit:** hoje usa o D1 (poucas escritas, só no login). Se o tráfego crescer, migrar para o recurso nativo de rate limiting do Workers.
+
+## Orçamento por invocação (plano gratuito)
+
+Todo pedido passa por um medidor (`apps/api/src/budget.ts`) que conta as consultas ao D1. O plano gratuito permite 50 por invocação (um `db.batch()` conta como 1) e 50 chamadas externas. Rotas de lote leem tudo numa consulta e gravam com `db.batch()`; rotas que dependem de chamadas externas (publicar na Shopee, agendador) param antes do limite e devolvem o restante. Nos testes, `STRICT_BUDGET=1` transforma qualquer excesso em erro.

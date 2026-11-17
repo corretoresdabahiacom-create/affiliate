@@ -162,6 +162,7 @@ export function StoreBuilder() {
   const [authMsg, setAuthMsg] = useState<Msg>(null);
   const [results, setResults] = useState<PublishResult[] | null>(null);
   const [pubBusy, setPubBusy] = useState(false);
+  const [pubProgress, setPubProgress] = useState<{ done: number; total: number } | null>(null);
   // sincronização com o fornecedor
   const [syncItems, setSyncItems] = useState<Array<{ listingId: string; productName: string; proposal: SyncProposal }> | null>(null);
   const [syncChecked, setSyncChecked] = useState(0);
@@ -182,9 +183,19 @@ export function StoreBuilder() {
     setBusy(true); setMsg(null);
     try {
       const r = await api.storeBuild({ connectionId: shopId, productIds: picked, locale, withModel, ...(rule === "markup" ? { markupPercent: Number(markup) } : { fixedPrice: Number(fixed) }) });
-      setMsg({ ok: true, text: t("store.built", { n: r.items.length }) + (r.skipped.length ? ` ${t("store.skipped", { n: r.skipped.length })}` : "") });
+      const head = t("store.built", { n: r.items.length }) + (r.skipped.length ? ` ${t("store.skipped", { n: r.skipped.length })}` : "");
+      setMsg({ ok: true, text: head });
       setPicked([]);
       loadListings();
+      // A IA escreve alguns textos por chamada (limite do servidor); o resto sai em chamadas seguintes.
+      let pending = r.aiPending ?? [];
+      for (let round = 0; pending.length > 0 && round < 20; round++) {
+        setMsg({ ok: true, text: `${head} ${t("store.aiProgress", { n: pending.length })}` });
+        const next = await api.listingsAiText(pending, locale);
+        if (next.pending.length >= pending.length) break; // sem progresso (limite de uso da IA): para e deixa o texto do fornecedor
+        pending = next.pending;
+      }
+      if (r.aiPending?.length) { setMsg({ ok: true, text: head }); loadListings(); }
     } catch (e) { setMsg({ ok: false, text: errorMessage(e, t) }); } finally { setBusy(false); }
   };
 
@@ -219,9 +230,24 @@ export function StoreBuilder() {
       setConfirm(""); setSel([]); loadListings();
     } catch (e) { setAuthMsg({ ok: false, text: errorMessage(e, t) }); }
   };
+  // O servidor publica o que cabe numa chamada e devolve o restante; repetimos até acabar, mostrando o progresso.
   const send = async (ids: string[]) => {
-    setPubBusy(true); setResults(null);
-    try { setResults((await api.listingPublish(ids)).results); loadListings(); } catch (e) { setAuthMsg({ ok: false, text: errorMessage(e, t) }); } finally { setPubBusy(false); }
+    setPubBusy(true); setResults(null); setPubProgress(null);
+    const all: PublishResult[] = [];
+    try {
+      let todo = ids;
+      for (let round = 0; todo.length > 0 && round < 30; round++) {
+        const r = await api.listingPublish(todo);
+        all.push(...r.results);
+        setPubProgress({ done: all.length, total: ids.length });
+        if (!r.pendingIds?.length || r.pendingIds.length >= todo.length) break;
+        todo = r.pendingIds;
+      }
+      setResults(all);
+    } catch (e) {
+      if (all.length) setResults(all);
+      setAuthMsg({ ok: false, text: errorMessage(e, t) });
+    } finally { setPubBusy(false); setPubProgress(null); loadListings(); }
   };
   const publish = () => send(approved.map((l) => l.id));
   const sendUpdates = () => send(updatesReady.map((l) => l.id));
@@ -377,8 +403,8 @@ export function StoreBuilder() {
 
         {(approved.length > 0 || updatesReady.length > 0) && (
           <div className="card flex flex-wrap gap-2">
-            {approved.length > 0 && <button className="btn" disabled={pubBusy} onClick={publish}>{pubBusy ? t("store.publishing") : t("store.publish", { n: approved.length })}</button>}
-            {updatesReady.length > 0 && <button className="btn" disabled={pubBusy} onClick={sendUpdates}>{pubBusy ? t("store.publishing") : t("store.update.send", { n: updatesReady.length })}</button>}
+            {approved.length > 0 && <button className="btn" disabled={pubBusy} onClick={publish}>{pubBusy ? (pubProgress ? t("store.publishingN", pubProgress) : t("store.publishing")) : t("store.publish", { n: approved.length })}</button>}
+            {updatesReady.length > 0 && <button className="btn" disabled={pubBusy} onClick={sendUpdates}>{pubBusy ? (pubProgress ? t("store.publishingN", pubProgress) : t("store.publishing")) : t("store.update.send", { n: updatesReady.length })}</button>}
           </div>
         )}
         {results && (

@@ -9,6 +9,7 @@ import {
   type SupplierProductInput,
 } from "@ai/shared";
 import { audit } from "./audit";
+import { chunks } from "./budget";
 import { parseCsv, type Row } from "./catalog";
 import { randomToken, sha256Hex } from "./crypto";
 import { requireUser } from "./middleware";
@@ -197,6 +198,8 @@ integrations.patch("/connections/:id", async (c) => {
   if (!body || typeof body.autoStock !== "boolean" || conn.provider !== "shopee") return c.json({ error: "invalid_input" }, 400);
   const cfg = JSON.parse(conn.config as string);
   cfg.autoStock = body.autoStock;
+  // Religar depois de uma pausa do disjuntor limpa o aviso.
+  if (body.autoStock) { delete cfg.autoStockPausedAt; delete cfg.autoStockPausedReason; }
   await c.env.DB.prepare("UPDATE integration_connections SET config = ?, updated_at = ? WHERE id = ?").bind(JSON.stringify(cfg), now(), conn.id).run();
   await audit(c.env.DB, uid(c), body.autoStock ? "integration.auto_stock_on" : "integration.auto_stock_off", conn.id as string);
   return c.json({ item: connOut((await ownConn(c, conn.id as string))!) });
@@ -204,24 +207,35 @@ integrations.patch("/connections/:id", async (c) => {
 
 // ---------- Fornecedor: catálogo e custos ----------
 
+/**
+ * Grava os produtos em lote: 1 consulta para saber o que já existe + 1 db.batch() a cada 100 linhas
+ * (no plano gratuito do D1 cada invocação tem 50 consultas; um batch conta como 1).
+ * Linhas repetidas no mesmo arquivo: vale a última.
+ */
 async function upsertProducts(c: any, connectionId: string, items: SupplierProductInput[], source: "csv" | "json" | "api") {
   const t = now();
+  const db: D1Database = c.env.DB;
+  const last = new Map<string, SupplierProductInput>();
+  for (const i of items) last.set(i.externalId, i);
+  const { results } = await db.prepare("SELECT external_id FROM supplier_products WHERE connection_id = ?").bind(connectionId).all<Row>();
+  const had = new Set(results.map((r) => r.external_id as string));
   let created = 0;
   let updated = 0;
-  for (const i of items) {
-    const ex = await c.env.DB.prepare("SELECT id FROM supplier_products WHERE connection_id = ? AND external_id = ?").bind(connectionId, i.externalId).first();
-    if (ex) {
-      await c.env.DB.prepare(
-        "UPDATE supplier_products SET sku=?, name=?, description=?, cost_price=?, currency=?, stock=?, images=?, category=?, weight_kg=?, source=?, synced_at=?, variants=? WHERE id=?",
-      ).bind(i.sku ?? null, i.name, i.description ?? null, i.costPrice, i.currency, i.stock ?? null, JSON.stringify(i.images), i.category ?? null, i.weightKg ?? null, source, t, i.variants ? JSON.stringify(i.variants) : null, ex.id).run();
-      updated++;
-    } else {
-      await c.env.DB.prepare(
-        "INSERT INTO supplier_products (id, user_id, connection_id, external_id, sku, name, description, cost_price, currency, stock, images, category, weight_kg, source, synced_at, variants) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-      ).bind(crypto.randomUUID(), uid(c), connectionId, i.externalId, i.sku ?? null, i.name, i.description ?? null, i.costPrice, i.currency, i.stock ?? null, JSON.stringify(i.images), i.category ?? null, i.weightKg ?? null, source, t, i.variants ? JSON.stringify(i.variants) : null).run();
-      created++;
-    }
+  const stmts: D1PreparedStatement[] = [];
+  for (const i of last.values()) {
+    if (had.has(i.externalId)) updated++;
+    else created++;
+    stmts.push(
+      db.prepare(
+        `INSERT INTO supplier_products (id, user_id, connection_id, external_id, sku, name, description, cost_price, currency, stock, images, category, weight_kg, source, synced_at, variants)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+         ON CONFLICT(connection_id, external_id) DO UPDATE SET sku=excluded.sku, name=excluded.name, description=excluded.description, cost_price=excluded.cost_price,
+           currency=excluded.currency, stock=excluded.stock, images=excluded.images, category=excluded.category, weight_kg=excluded.weight_kg, source=excluded.source,
+           synced_at=excluded.synced_at, variants=excluded.variants`,
+      ).bind(crypto.randomUUID(), uid(c), connectionId, i.externalId, i.sku ?? null, i.name, i.description ?? null, i.costPrice, i.currency, i.stock ?? null, JSON.stringify(i.images), i.category ?? null, i.weightKg ?? null, source, t, i.variants ? JSON.stringify(i.variants) : null),
+    );
   }
+  for (const part of chunks(stmts, 100)) await db.batch(part);
   return { created, updated };
 }
 

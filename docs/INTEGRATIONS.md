@@ -21,7 +21,7 @@ Objetivo: levar produtos do fornecedor para a loja Shopee do próprio usuário, 
 | Atributos obrigatórios | Ao escolher a categoria, o sistema consulta os atributos dela na Shopee. Os obrigatórios bloqueiam a autorização até a pessoa preencher com dado real; o sistema não inventa valores. |
 | Editar publicado | Título, descrição, preço e estoque (por modelo, se houver) podem ser editados. A edição vira "alteração pendente" e só vai para a Shopee depois de nova autorização (mesma confirmação da quantidade). Categoria, canais, imagens, atributos e peso ficam travados. |
 | Sincronização | "Comparar" confronta os publicados com o catálogo atual do fornecedor e só propõe estoque e preço (preço só se a regra for markup). Aplicar cria alteração pendente, que ainda exige autorização. |
-| Estoque automático | Opcional, desligado por padrão, por conexão. Ligado, um agendador (a cada 6 horas) atualiza só o estoque dos publicados sem alteração pendente; preço nunca muda sozinho. Cada atualização fica na auditoria (`listing.stock_auto`). |
+| Estoque automático | Opcional, desligado por padrão, por conexão. Ligado, o agendador (a cada 10 minutos, um lote por vez) atualiza só o estoque dos publicados sem alteração pendente; preço nunca muda sozinho. **Disjuntor:** se uma importação fizer pelo menos 5 anúncios, e metade ou mais dos que têm estoque, irem a zero de uma vez, a sincronização dessa loja é pausada, nada é enviado à Shopee e você recebe um aviso; religar limpa a pausa. Cada atualização fica na auditoria (`listing.stock_auto`). |
 | Pedidos | Busca os pedidos da Shopee (1 a 15 dias) e guarda só o necessário (número, status, itens, total). Nome, endereço, telefone e documento do comprador não são pedidos nem guardados. |
 | Ficha do fornecedor | Lista o que comprar no fornecedor com o custo real de cada item. Item sem anúncio correspondente aparece como "sem custo conhecido"; o total só aparece se todos tiverem custo. O sistema não compra por você: o andamento (comprado, enviado, entregue, problema, nº do pedido, rastreio do fornecedor) é registrado à mão. |
 | Rastreio | Atualização sob demanda do código e dos eventos de rastreio da Shopee. |
@@ -66,3 +66,13 @@ Em desenvolvimento, coloque `CREDENTIALS_KEY=...` no `.dev.vars`. Configure a UR
 ## Automações
 
 Webhooks, gancho de entrada, notificações e monitor de fontes estão em `docs/AUTOMATION.md`.
+
+## Limites do plano gratuito (publicação em etapas)
+
+No plano gratuito da Cloudflare cada requisição pode fazer 50 consultas ao D1 e 50 chamadas externas. Por isso:
+
+- importar até 500 linhas, montar 50 rascunhos, ajustar e autorizar 50 usam gravação em lote (poucas consultas);
+- **publicar 50 acontece em etapas**: cada chamada publica o que cabe (cerca de 10 anúncios, conforme o número de imagens) e devolve `pendingIds`; a tela repete sozinha até terminar e mostra o progresso;
+- o texto da IA na montagem é escrito para alguns produtos por chamada; os demais saem em seguida por `/api/market/listings/ai-text`.
+
+Os testes rodam com o modo estrito ligado (`STRICT_BUDGET=1`): qualquer rota que passe de 45 consultas falha a suíte.

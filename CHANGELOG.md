@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.10.0 — Auditoria: limites do plano gratuito e correções
+
+### Erro principal encontrado
+No plano gratuito da Cloudflare cada requisição pode fazer 50 consultas ao D1 e 50 chamadas externas. Medido nos testes antes da correção:
+importar 500 linhas = 1.003 consultas; montar 50 rascunhos = 107; ajustar 50 = 102; autorizar 50 = 102; publicar 50 = 305 consultas e 150 chamadas; buscar 120 pedidos = 366. Em produção, essas ações falhariam.
+
+### Corrigido
+- Medidor de consultas por requisição (`budget.ts`); testes em modo estrito (`STRICT_BUDGET=1`).
+- Gravação em lote na importação do fornecedor, montagem, ajuste e autorização em lote, pedidos e sincronização. Depois: 9, 9, 4, 4, 11 e 4 consultas.
+- Publicação em etapas (`pendingIds`), com a tela repetindo até terminar; texto da IA em etapas (`/listings/ai-text`).
+- Agendador a cada 10 minutos, com fatias de orçamento por tarefa e rodízio entre usuários; `WORKER_PLAN=paid` para contas pagas.
+- Webhooks: endpoint desligado não gera falhas nem avisos repetidos; fila descartada ao desligar; teste manual responde pelo próprio ping; resposta descartada sem leitura.
+- Alertas: o marco de cada passada é o próprio relógio (sem duplicar nem perder); `alert.new` informa `total` e `truncated`.
+- Monitor: mesma página em vários campos verificada e avisada uma vez; leitura limitada a 1 MB de fato; avisos e eventos de seguidores em lote.
+- Gancho de entrada: id fora do formato não consulta o banco; falhas limitadas por IP sem esgotar a cota do dono.
+- Autorização em lote não autoriza anúncio editado no meio do caminho (`changed_meanwhile`).
+- Notificações no idioma de quem lê (valores em `data`, migration `0010`).
+- Espanhol padronizado em "tú" (36 textos estavam em "usted"); texto do cancelamento de e-mail em 3 idiomas.
+- Versões dos pacotes alinhadas ao CHANGELOG.
+
+### Novo
+- Disjuntor do estoque automático: se uma importação zerar de uma vez boa parte da loja, a sincronização pausa e avisa, sem tocar na Shopee.
+
 ## Fase 7 — Integrações e automações (0.9.0)
 
 - Migration `0009_automation.sql`: `webhook_endpoints`, `webhook_deliveries`, `inbound_hooks`, `notifications`, `source_checks`; `alert_prefs` ganha `email_enabled`, `last_digest_at`, `last_event_at`.

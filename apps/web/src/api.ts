@@ -266,7 +266,7 @@ export interface OrderItem { itemId: string; modelId: string | null; name: strin
 export interface Webhook { id: string; label: string; url: string; events: string[]; active: boolean; consecutiveDead: number; lastDeliveryAt: number | null; createdAt: number }
 export interface WebhookDelivery { id: string; event: string; status: "pending" | "delivered" | "dead"; attempts: number; responseStatus: number | null; error: string | null; createdAt: number; deliveredAt: number | null }
 export interface InboundHook { id: string; label: string; actions: string[]; lastUsedAt: number | null; createdAt: number }
-export interface Notice { id: string; kind: string; title: string; body: string | null; link: string | null; createdAt: number; read: boolean }
+export interface Notice { id: string; kind: string; title: string; body: string | null; link: string | null; createdAt: number; read: boolean; data: Record<string, unknown> | null }
 export interface MonitorItem { sourceId: string; programId: string; programName: string; url: string; lastStatus: number | null; failures: number; lastCheckedAt: number | null; changedAt: number | null }
 export const WEBHOOK_EVENT_LIST = ["listing.published", "listing.updated", "order.new", "ad.approved", "alert.new", "monitor.finding", "test.ping"] as const;
 export interface Order {
@@ -376,13 +376,14 @@ export const api = {
   supplierImport: (body: Record<string, unknown>) => request<{ created?: number; updated?: number; valid?: number; dryRun?: boolean; errors: Array<{ row: number; error: string }> }>("POST", "/api/integrations/supplier/import", body),
   supplierSync: (id: string) => request<{ created: number; updated: number; errors: Array<{ row: number; error: string }> }>("POST", `/api/integrations/connections/${id}/supplier/sync`),
   supplierProducts: (connectionId?: string) => request<{ items: SupplierProduct[] }>("GET", `/api/integrations/supplier/products${connectionId ? `?connectionId=${connectionId}` : ""}`),
-  storeBuild: (body: Record<string, unknown>) => request<{ items: Listing[]; skipped: Array<{ productId: string; reason: string }>; published: false }>("POST", "/api/market/store/build", body),
+  storeBuild: (body: Record<string, unknown>) => request<{ items: Listing[]; skipped: Array<{ productId: string; reason: string }>; aiPending: string[]; published: false }>("POST", "/api/market/store/build", body),
+  listingsAiText: (listingIds: string[], locale: string) => request<{ items: Listing[]; pending: string[] }>("POST", "/api/market/listings/ai-text", { listingIds, locale }),
   listings: (connectionId?: string) => request<{ items: Listing[] }>("GET", `/api/market/listings${connectionId ? `?connectionId=${connectionId}` : ""}`),
   listingPatch: (id: string, body: Record<string, unknown>) => request<{ item: Listing }>("PATCH", `/api/market/listings/${id}`, body),
   listingBulk: (body: Record<string, unknown>) => request<{ updated: number }>("POST", "/api/market/listings/bulk-patch", body),
   listingAuthorize: (listingIds: string[], confirmCount: number) => request<{ authorized: string[]; rejected: Array<{ id: string; issues: string[] }> }>("POST", "/api/market/listings/authorize", { listingIds, confirmCount }),
   listingStatus: (id: string, status: string) => request<{ item: Listing }>("POST", `/api/market/listings/${id}/status`, { status }),
-  listingPublish: (listingIds: string[]) => request<{ results: PublishResult[] }>("POST", "/api/market/listings/publish", { listingIds }),
+  listingPublish: (listingIds: string[]) => request<{ results: PublishResult[]; pendingIds: string[]; remaining: number }>("POST", "/api/market/listings/publish", { listingIds }),
   listingDelete: (id: string) => request<{ ok: true }>("DELETE", `/api/market/listings/${id}`),
   connectionPatch: (id: string, body: { autoStock: boolean }) => request<{ item: Connection }>("PATCH", `/api/integrations/connections/${id}`, body),
   syncPreview: (connectionId: string) => request<{ items: Array<{ listingId: string; productName: string; proposal: SyncProposal }>; checked: number }>("POST", "/api/market/sync/preview", { connectionId }),

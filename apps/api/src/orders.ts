@@ -1,7 +1,8 @@
 import { Hono } from "hono";
 import { normalizeOrder, orderSyncSchema, supplierOrderPatchSchema, supplierSheet, type OrderItem } from "@ai/shared";
 import { audit } from "./audit";
-import { emitFrom, notify } from "./automation";
+import { emitManyFrom, notify } from "./automation";
+import { chunks } from "./budget";
 import type { Row } from "./catalog";
 import { ownConn, shopeeCreds, shopeeFail } from "./integrations";
 import { requireUser } from "./middleware";
@@ -41,25 +42,36 @@ orders.post("/sync", async (c) => {
     const to = Math.floor(now() / 1000);
     const list = await shopee.getOrderList(creds, to - p.data.days * 86400, to);
     const details = list.length ? await shopee.getOrderDetails(creds, list.map((o) => o.sn)) : [];
-    let created = 0;
-    let updated = 0;
+    const orders = new Map<string, NonNullable<ReturnType<typeof normalizeOrder>>>();
     for (const raw of details) {
       const o = normalizeOrder(raw);
-      if (!o) continue;
-      const ex = await c.env.DB.prepare("SELECT id FROM marketplace_orders WHERE connection_id = ? AND order_sn = ?").bind(conn.id, o.orderSn).first<{ id: string }>();
-      if (ex) {
-        // Não mexe no que a pessoa registrou (fornecedor) nem no rastreio já consultado.
-        await c.env.DB.prepare("UPDATE marketplace_orders SET status=?, total=?, items=?, synced_at=? WHERE id=?").bind(o.status, o.total, JSON.stringify(o.items), now(), ex.id).run();
-        updated++;
-      } else {
-        await c.env.DB.prepare(
-          "INSERT INTO marketplace_orders (id, user_id, connection_id, order_sn, status, ordered_at, currency, total, items, supplier_status, synced_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-        ).bind(crypto.randomUUID(), uid(c), conn.id, o.orderSn, o.status, o.createdAt, o.currency, o.total, JSON.stringify(o.items), "not_placed", now()).run();
+      if (o) orders.set(o.orderSn, o);
+    }
+    // Leitura única do que já existe + gravação em lote (o plano gratuito do D1 permite 50 consultas por invocação).
+    const had = new Set<string>();
+    for (const part of chunks([...orders.keys()], 90)) {
+      const { results } = await (c.env.DB as D1Database).prepare(`SELECT order_sn FROM marketplace_orders WHERE connection_id = ? AND order_sn IN (${part.map(() => "?").join(",")})`).bind(conn.id, ...part).all<Row>();
+      for (const r of results) had.add(r.order_sn as string);
+    }
+    let created = 0;
+    let updated = 0;
+    const stmts: D1PreparedStatement[] = [];
+    const events: Array<{ event: "order.new"; data: Record<string, unknown> }> = [];
+    for (const o of orders.values()) {
+      // Não mexe no que a pessoa registrou (fornecedor) nem no rastreio já consultado.
+      stmts.push(c.env.DB.prepare(
+        `INSERT INTO marketplace_orders (id, user_id, connection_id, order_sn, status, ordered_at, currency, total, items, supplier_status, synced_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)
+         ON CONFLICT(connection_id, order_sn) DO UPDATE SET status=excluded.status, total=excluded.total, items=excluded.items, synced_at=excluded.synced_at`,
+      ).bind(crypto.randomUUID(), uid(c), conn.id, o.orderSn, o.status, o.createdAt, o.currency, o.total, JSON.stringify(o.items), "not_placed", now()));
+      if (had.has(o.orderSn)) updated++;
+      else {
         created++;
-        await emitFrom(c, "order.new", { orderSn: o.orderSn, status: o.status, total: o.total, items: o.items.length });
+        events.push({ event: "order.new", data: { orderSn: o.orderSn, status: o.status, total: o.total, items: o.items.length } });
       }
     }
-    if (created > 0) await notify(c.env.DB, uid(c), "order.new", `${created} novo(s) pedido(s) na Shopee`, null, "/orders");
+    for (const part of chunks(stmts, 100)) await c.env.DB.batch(part);
+    await emitManyFrom(c, events);
+    if (created > 0) await notify(c.env.DB, uid(c), "order.new", `${created} novo(s) pedido(s) na Shopee`, null, "/orders", { n: created });
     await audit(c.env.DB, uid(c), "orders.synced", conn.id as string, { created, updated, days: p.data.days });
     return c.json({ created, updated, days: p.data.days });
   } catch (e) {
