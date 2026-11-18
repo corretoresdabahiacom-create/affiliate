@@ -21,7 +21,7 @@ crons = ["*/10 * * * *"]
 binding = "DB"
 database_name = "affiliate-intelligence"
 # Preencha após `wrangler d1 create affiliate-intelligence` (veja docs/DEPLOY.md).
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "e94dbd28-a27b-43a8-b3e4-bc18fc78517e"
 migrations_dir = "migrations"
 
 [vars]
