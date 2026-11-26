@@ -27,7 +27,7 @@ migrations_dir = "migrations"
 [vars]
 ENVIRONMENT = "production"
 # URL pública do app (usada no link do e-mail). Ajuste para o seu domínio *.workers.dev.
-APP_URL = "https://affiliate.corretoresdabahia-com.workers.dev"
+APP_URL = "https://affiliate-intelligence.corretoresdabahia-com.workers.dev"
 # E-mails (separados por vírgula) que viram admin no primeiro login.
 ADMIN_EMAILS = ""
 EMAIL_FROM = "Affiliate Intelligence <onboarding@example.com>"
