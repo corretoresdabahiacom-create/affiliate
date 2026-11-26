@@ -31,4 +31,4 @@ APP_URL = "https://affiliate-intelligence.corretoresdabahia-com.workers.dev"
 # E-mails (separados por vírgula) que viram admin no primeiro login.
 ADMIN_EMAILS = "corretoresdabahia.com@gmail.com"
 EMAIL_FROM = "Affiliate Intelligence <onboarding@resend.dev>"
-# Segredo opcional (wrangler secret put RESEND_API_KEY). Sem ele, o link é só registrado no log.
+# Segredo (RESEND_API_KEY): sem ele o e-mail não é enviado e, em produção, o link de acesso NÃO é gravado no log.
