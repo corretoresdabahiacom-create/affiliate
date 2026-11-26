@@ -30,5 +30,5 @@ ENVIRONMENT = "production"
 APP_URL = "https://affiliate-intelligence.corretoresdabahia-com.workers.dev"
 # E-mails (separados por vírgula) que viram admin no primeiro login.
 ADMIN_EMAILS = ""
-EMAIL_FROM = "Affiliate Intelligence <onboarding@example.com>"
+EMAIL_FROM = "Affiliate Intelligence <onboarding@resend.dev>"
 # Segredo opcional (wrangler secret put RESEND_API_KEY). Sem ele, o link é só registrado no log.
