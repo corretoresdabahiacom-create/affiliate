@@ -153,7 +153,7 @@ describe("rascunhos de divulgação", () => {
     const r1 = await setStatus(user, id, "approved");
     expect(r1.status).toBe(422);
     expect(r1.body.issues).toContain("forbidden_claim");
-    await callE(`/api/studio/ads/${id}`, { method: "PATCH", cookie: user, body: { description: "Comissão de 50% garantida pela rede." } });
+    await callE(`/api/studio/ads/${id}`, { method: "PATCH", cookie: user, body: { description: "Comissão de 37,5% garantida pela rede." } });
     expect((await setStatus(user, id, "approved")).body.issues).toEqual(expect.arrayContaining(["forbidden_claim", "ungrounded"]));
     await callE(`/api/studio/ads/${id}`, { method: "PATCH", cookie: user, body: { description: "Ferramenta de e-mail para criadores, vale conhecer." } });
     expect((await setStatus(user, id, "approved")).status).toBe(200);
