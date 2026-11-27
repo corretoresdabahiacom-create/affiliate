@@ -1,5 +1,12 @@
 # Changelog
 
+## Não lançado — Semana de conteúdo e novo visual
+- **Semana de conteúdo** (`/week`, API `/api/content`): plano semanal de até 21 posts (7 por dia no máximo de 3 plataformas: Instagram, TikTok, YouTube), com aprovação humana obrigatória. Aprovar exige roteiro e, se houver link de afiliado, divulgação confirmada. Editar conteúdo já aprovado devolve o post a "ideia". "Agendado" e "publicado" são marcações do usuário: o sistema não publica nada. Métricas são digitadas pelo usuário (sem integração verificada com as plataformas); o ranking aparece sempre e as tendências (melhor plataforma/dia) só com 3 ou mais posts medidos. Inclui prompt pronto para o Claude montar a semana.
+- Migração `0013_content_posts.sql` (tabela `content_posts`; entra em `/api/me/export` como `contentPosts` e some com a conta).
+- **Novo visual**: menu lateral agrupado com ícones (gaveta no celular), tema de neutros quentes e laranja de marca aplicado a todas as telas por meio da escala de cores do Tailwind, botões, cartões e campos refeitos.
+- Testes: shared +8, API +9, web +7.
+
+
 ## 0.12.0 — Fase 9: segurança e produção
 
 ### Achados da auditoria (corrigidos)

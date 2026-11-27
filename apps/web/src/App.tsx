@@ -31,6 +31,7 @@ const AdStudio = lazy(() => import("./pages/AdStudio").then((m) => ({ default: m
 const Assistant = lazy(() => import("./pages/Assistant").then((m) => ({ default: m.Assistant })));
 const Billing = lazy(() => import("./pages/Billing").then((m) => ({ default: m.Billing })));
 const Reports = lazy(() => import("./pages/Reports").then((m) => ({ default: m.Reports })));
+const Content = lazy(() => import("./pages/Content").then((m) => ({ default: m.Content })));
 const Legal = lazy(() => import("./pages/Legal").then((m) => ({ default: m.Legal })));
 
 /** Exige sessão; quem ainda não fez o onboarding é levado a ele. */
@@ -75,6 +76,7 @@ export function App() {
         <Route path="/orders" element={<Protected><Orders /></Protected>} />
         <Route path="/store" element={<Protected><StoreBuilder /></Protected>} />
         <Route path="/seasonal" element={<Protected><Seasonal /></Protected>} />
+        <Route path="/week" element={<Protected><Content /></Protected>} />
         <Route path="/studio" element={<Protected><AdStudio /></Protected>} />
         <Route path="/assistant" element={<Protected><Assistant /></Protected>} />
         <Route path="/recommendations" element={<Protected><Recommendations /></Protected>} />
