@@ -327,6 +327,22 @@ export interface Listing {
 }
 export interface PublishResult { id: string; ok: boolean; itemId?: string; error?: string; issues?: string[]; updated?: boolean }
 
+export type ContentPlatformId = "instagram" | "tiktok" | "youtube";
+export type ContentStatus = "idea" | "approved" | "scheduled" | "published";
+export interface ContentMetrics { views: number; likes: number | null; shares: number | null; saves: number | null; clicks: number | null; retentionPct: number | null; at: number | null }
+export interface ContentPost {
+  id: string; weekStart: string; day: number; time: string | null; title: string; hook: string | null; script: string | null;
+  platforms: ContentPlatformId[]; status: ContentStatus; usesAffiliateLink: boolean; disclosureConfirmed: boolean; notes: string | null; metrics: ContentMetrics | null;
+}
+export interface ContentWeek { weekStart: string; prev: string; next: string; items: ContentPost[] }
+export interface ContentInsights {
+  since: string; sample: number; enough: boolean;
+  ranking: Array<{ id: string; title: string; views: number; engagement: number | null; retentionPct: number | null }>;
+  byPlatform: Array<{ platform: ContentPlatformId; posts: number; avgViews: number; avgEngagement: number | null }>;
+  byDay: Array<{ day: number; posts: number; avgViews: number }>;
+  best: { platform: ContentPlatformId | null; day: number | null };
+}
+
 export const api = {
   me: () => request<Me>("GET", "/api/me"),
   requestLogin: (email: string, locale: string) =>
@@ -465,4 +481,11 @@ export const api = {
   monitor: () => request<{ items: MonitorItem[] }>("GET", "/api/automation/monitor"),
   monitorCheck: (programId: string) => request<{ checked: number; findings: string[] }>("POST", `/api/automation/monitor/check/${programId}`),
   adDelete: (id: string) => request<{ ok: true }>("DELETE", `/api/studio/ads/${id}`),
+  contentWeek: (start?: string) => request<ContentWeek>("GET", `/api/content/week${start ? `?start=${start}` : ""}`),
+  contentCreate: (body: Record<string, unknown>) => request<{ ok: true; id: string }>("POST", "/api/content/posts", body),
+  contentPatch: (id: string, body: Record<string, unknown>) => request<{ ok: true; reapprovalNeeded: boolean }>("PATCH", `/api/content/posts/${id}`, body),
+  contentStatus: (id: string, status: ContentStatus) => request<{ ok: true }>("POST", `/api/content/posts/${id}/status`, { status }),
+  contentMetrics: (id: string, body: Record<string, unknown>) => request<{ ok: true }>("PUT", `/api/content/posts/${id}/metrics`, body),
+  contentDelete: (id: string) => request<{ ok: true }>("DELETE", `/api/content/posts/${id}`),
+  contentInsights: () => request<ContentInsights>("GET", "/api/content/insights"),
 };

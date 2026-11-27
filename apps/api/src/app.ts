@@ -28,6 +28,7 @@ import { adminBilling, billing } from "./billing";
 import { limitsFor, metered } from "./budget";
 import { market } from "./market";
 import { orders } from "./orders";
+import { content } from "./content";
 import { automation, inbound, unsubscribe } from "./automation";
 import { isBotUserAgent } from "@ai/shared";
 import type { AppBindings, Env, SessionUser } from "./types";
@@ -316,8 +317,8 @@ app.put("/api/me/profile", requireUser, async (c) => {
 // LGPD/GDPR: exportação e exclusão da própria conta.
 async function exportOps(db: D1Database, userId: string) {
   const q = async (table: string) => (await db.prepare(`SELECT * FROM ${table} WHERE user_id = ?`).bind(userId).all()).results;
-  const [programs, programHistory, programDocs, links, linkClicks, campaigns, commissions, adjustments, adDrafts] = await Promise.all(
-    ["user_programs", "user_program_history", "user_program_docs", "affiliate_links", "link_clicks", "campaigns", "commissions", "commission_adjustments", "ad_drafts"].map(q),
+  const [programs, programHistory, programDocs, links, linkClicks, campaigns, commissions, adjustments, adDrafts, contentPosts] = await Promise.all(
+    ["user_programs", "user_program_history", "user_program_docs", "affiliate_links", "link_clicks", "campaigns", "commissions", "commission_adjustments", "ad_drafts", "content_posts"].map(q),
   );
   // Conexões: sem credenciais, só dados não secretos.
   const connections = (await db.prepare("SELECT id, provider, label, config, status, created_at FROM integration_connections WHERE user_id = ?").bind(userId).all()).results;
@@ -329,7 +330,7 @@ async function exportOps(db: D1Database, userId: string) {
   const inboundRows = ((await db.prepare("SELECT id, label, actions, created_at, last_used_at FROM inbound_hooks WHERE user_id = ?").bind(userId).all()).results);
   const subRow = (await db.prepare("SELECT plan_id, status, trial_ends_at, current_period_start, current_period_end, cancel_at_period_end, provider, created_at FROM subscriptions WHERE user_id = ?").bind(userId).first()) ?? null;
   const payRows = (await db.prepare("SELECT plan_id, amount_cents, currency, status, provider, provider_ref, period_start, period_end, paid_at, created_at FROM payments WHERE user_id = ? ORDER BY created_at").bind(userId).all()).results;
-  return { programs, programHistory, programDocs, links, linkClicks, campaigns, commissions, adjustments, adDrafts, connections, supplierProducts, listings, orders: orderRows, subscription: subRow, payments: payRows, notifications: notificationRows, webhooks: webhookRows, inboundHooks: inboundRows };
+  return { programs, programHistory, programDocs, links, linkClicks, campaigns, commissions, adjustments, adDrafts, contentPosts, connections, supplierProducts, listings, orders: orderRows, subscription: subRow, payments: payRows, notifications: notificationRows, webhooks: webhookRows, inboundHooks: inboundRows };
 }
 
 app.get("/api/me/export", requireUser, async (c) => {
@@ -464,6 +465,7 @@ app.route("/api/studio", studio);
 app.route("/api/integrations", integrations);
 app.route("/api/market", market);
 app.route("/api/orders", orders);
+app.route("/api/content", content);
 app.route("/api/automation", automation);
 app.route("/api/hooks/in", inbound);
 app.route("/api/unsubscribe", unsubscribe);

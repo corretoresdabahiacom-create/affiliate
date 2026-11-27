@@ -1,28 +1,100 @@
 @import "tailwindcss";
 
-:root {
-  --brand: #4f46e5;
+/*
+ * Tema: neutros quentes (creme/grafite) e laranja de marca.
+ * As páginas usam as escalas "slate" e "indigo" do Tailwind; redefini-las aqui muda o app inteiro de uma vez.
+ * Contraste conferido: texto slate-500 sobre branco/creme e branco sobre indigo-600 passam de 4,5:1.
+ */
+@theme {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --color-slate-50: #f8f6f1;
+  --color-slate-100: #f0ede5;
+  --color-slate-200: #e2ded3;
+  --color-slate-300: #cdc8ba;
+  --color-slate-400: #9d978a;
+  --color-slate-500: #6b665b;
+  --color-slate-600: #57534a;
+  --color-slate-700: #403d36;
+  --color-slate-800: #2a2823;
+  --color-slate-900: #1a1916;
+  --color-slate-950: #0e0d0b;
+
+  --color-indigo-50: #fff3ec;
+  --color-indigo-100: #ffe4d3;
+  --color-indigo-200: #ffc9a8;
+  --color-indigo-300: #ffa66f;
+  --color-indigo-400: #f97c3a;
+  --color-indigo-500: #ea5a1a;
+  --color-indigo-600: #c8420f;
+  --color-indigo-700: #a3340b;
+  --color-indigo-800: #7f290c;
+  --color-indigo-900: #5f2210;
 }
 
+:root {
+  --brand: #c8420f;
+  --ring: rgb(234 90 26 / 0.45);
+}
+
+html {
+  scroll-behavior: smooth;
+}
 body {
   @apply bg-slate-50 text-slate-900 antialiased;
+  font-feature-settings: "cv11", "ss01";
+}
+h1 {
+  letter-spacing: -0.02em;
+}
+::selection {
+  background: var(--color-indigo-200);
+}
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 
 .btn {
-  @apply inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-indigo-900/20 transition hover:bg-indigo-700 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50;
 }
 .btn-secondary {
-  @apply inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:opacity-50;
+  @apply inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 active:translate-y-px disabled:opacity-50;
 }
 .btn-danger {
-  @apply inline-flex items-center justify-center rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:opacity-50;
+  @apply inline-flex items-center justify-center gap-2 rounded-xl bg-rose-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-800 active:translate-y-px disabled:opacity-50;
 }
 .input {
-  @apply block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500;
+  @apply block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 hover:border-slate-300 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/25;
 }
 .card {
-  @apply rounded-xl border border-slate-200 bg-white p-5 shadow-sm;
+  @apply rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_2px_rgb(26_25_22/0.04),0_8px_24px_-12px_rgb(26_25_22/0.08)];
 }
 .label {
-  @apply mb-1 block text-sm font-medium text-slate-700;
+  @apply mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500;
+}
+.chip {
+  @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset;
+}
+.kicker {
+  @apply font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-indigo-600;
+}
+
+/* Tabelas simples já existentes ganham cabeçalho mais discreto. */
+table {
+  @apply w-full text-sm;
+}
+th {
+  @apply text-left text-xs font-semibold uppercase tracking-wide text-slate-500;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
 }
