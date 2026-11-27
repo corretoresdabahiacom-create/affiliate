@@ -15,7 +15,7 @@ export function Catalog() {
   const [meta, setMeta] = useState<CatalogMeta | null>(null);
   const reload = () => api.catalogMeta().then(setMeta);
   useEffect(() => {
-    reload();
+    reload().catch(() => undefined);
   }, []);
 
   if (me?.user.role !== "editor" && me?.user.role !== "admin") return <p role="alert">{t("error.forbidden")}</p>;
