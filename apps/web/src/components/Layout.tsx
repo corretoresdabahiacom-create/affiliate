@@ -59,6 +59,8 @@ const GROUPS: Group[] = [
       { to: "/week", label: "nav.week", icon: "calendar" },
       { to: "/studio", label: "nav.studio", icon: "film" },
       { to: "/store", label: "nav.store", icon: "store" },
+      { to: "/pages", label: "nav.pages", icon: "card" },
+      { to: "/downloads", label: "nav.downloads", icon: "download" },
       { to: "/assistant", label: "nav.assistant", icon: "sparkles" },
     ],
   },

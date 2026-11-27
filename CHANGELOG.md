@@ -5,6 +5,11 @@
 - Migração `0013_content_posts.sql` (tabela `content_posts`; entra em `/api/me/export` como `contentPosts` e some com a conta).
 - **Novo visual**: menu lateral agrupado com ícones (gaveta no celular), tema de neutros quentes e laranja de marca aplicado a todas as telas por meio da escala de cores do Tailwind, botões, cartões e campos refeitos.
 - Testes: shared +8, API +9, web +7.
+- **Páginas de venda** (`/pages`, editor em `/pages/:id`, API `/api/pages`, públicas em `/p/:slug`): 12 modelos em 6 categorias (dropshipping, infoproduto, SaaS, serviços, captação de contatos, análise/comparativo), editor por seções (topo, benefícios, passos, galeria, texto, preço, depoimentos, perguntas, chamada final) com reordenar/adicionar/remover, prévia computador/celular e salvamento automático. Upload de imagens com redução no navegador (até ~350 KB, JPG/PNG/WebP conferidos pelos bytes, SVG nunca), guardadas em base64 no D1 (sem armazenamento pago). O HTML público é gerado no servidor, tudo escapado, sem JavaScript, com CSP própria; as rotas `/p/*` entram em `run_worker_first` e saem do `secureHeaders` global.
+- Regras de publicação (não contornáveis): sem promessa de ganho (reaproveita `adClaimIssues`), sem texto de exemplo `[entre colchetes]`, botões com link https ou âncora, nome e e-mail do responsável, depoimentos só com confirmação de que são reais. Página publicada que deixa de cumprir volta a rascunho. Aviso de comissão no rodapé quando há link de afiliado; links com `rel="nofollow sponsored"`. Nenhum modelo promete viralização, e não há contagem regressiva nem escassez automática.
+- **Downloads reels** (`/downloads`): guia para baixar o conteúdo do próprio usuário pelos caminhos oficiais (Central de Contas do Instagram, "Baixar seus dados" do TikTok, YouTube Studio/Takeout), relatórios de campanha e orientação para conteúdo de terceiros. Não há baixador de links de outras pessoas: viola os termos das plataformas e os direitos autorais.
+- Migração `0014_sales_pages.sql` (`sales_pages`, `page_images`; páginas entram em `/api/me/export` como `salesPages`, tudo some com a conta). Limites: 10 páginas, 12 imagens por página, 60 por conta.
+- Testes: shared +8, API +11, web +5.
 
 
 ## 0.12.0 — Fase 9: segurança e produção

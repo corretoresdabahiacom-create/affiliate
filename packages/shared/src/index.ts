@@ -73,3 +73,4 @@ export * from "./store";
 export * from "./automation";
 export * from "./analytics";
 export * from "./content";
+export * from "./pages";

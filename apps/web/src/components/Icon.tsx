@@ -31,6 +31,13 @@ const PATHS = {
   arrowLeft: "M15 5l-7 7 7 7",
   arrowRight: "M9 5l7 7-7 7",
   plus: "M12 5v14 M5 12h14",
+  download: "M12 4v12 M7 11l5 5 5-5 M5 20h14",
+  upload: "M12 16V4 M7 9l5-5 5 5 M5 20h14",
+  arrowUp: "M12 19V5 M6 11l6-6 6 6",
+  arrowDown: "M12 5v14 M6 13l6 6 6-6",
+  trash: "M4 7h16 M9 7V4h6v3 M6 7l1 13h10l1-13",
+  image: "M4 5h16v14H4z M4 16l5-5 4 4 3-3 4 4 M9 9.5h.01",
+  external: "M14 4h6v6 M20 4l-9 9 M18 14v6H4V6h6",
 } as const;
 
 export type IconName = keyof typeof PATHS;

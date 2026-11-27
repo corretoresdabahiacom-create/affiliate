@@ -1,3 +1,4 @@
+import type { PageContent, PageTemplate, PublishIssue } from "@ai/shared";
 import type { AlertCategory, AlertPrefs, ProfileInput, Role, ScoreResult, ScoringConfig } from "@ai/shared";
 
 export class ApiError extends Error {
@@ -343,6 +344,14 @@ export interface ContentInsights {
   best: { platform: ContentPlatformId | null; day: number | null };
 }
 
+export interface PageSummary { id: string; slug: string; title: string; templateId: string; status: "draft" | "published"; updatedAt: number; publishedAt: number | null }
+export interface PageDetail extends PageSummary {
+  content: PageContent;
+  issues: PublishIssue[];
+  images: { id: string; mime: string; bytes: number }[];
+  limits: { maxImages: number; maxImageBytes: number };
+}
+
 export const api = {
   me: () => request<Me>("GET", "/api/me"),
   requestLogin: (email: string, locale: string) =>
@@ -487,5 +496,16 @@ export const api = {
   contentStatus: (id: string, status: ContentStatus) => request<{ ok: true }>("POST", `/api/content/posts/${id}/status`, { status }),
   contentMetrics: (id: string, body: Record<string, unknown>) => request<{ ok: true }>("PUT", `/api/content/posts/${id}/metrics`, body),
   contentDelete: (id: string) => request<{ ok: true }>("DELETE", `/api/content/posts/${id}`),
+  pageTemplates: () => request<{ items: PageTemplate[] }>("GET", "/api/pages/templates"),
+  pageList: () => request<{ items: PageSummary[]; max: number }>("GET", "/api/pages"),
+  pageCreate: (title: string, templateId: string) => request<{ ok: true; id: string }>("POST", "/api/pages", { title, templateId }),
+  pageGet: (id: string) => request<PageDetail>("GET", `/api/pages/${id}`),
+  pageSave: (id: string, body: { title?: string; slug?: string; content?: PageContent }) =>
+    request<{ ok: true; unpublished?: boolean; issues?: PublishIssue[] }>("PUT", `/api/pages/${id}`, body),
+  pagePublish: (id: string) => request<{ ok: true; path: string }>("POST", `/api/pages/${id}/publish`),
+  pageUnpublish: (id: string) => request<{ ok: true }>("POST", `/api/pages/${id}/unpublish`),
+  pageDelete: (id: string) => request<{ ok: true }>("DELETE", `/api/pages/${id}`),
+  pageImageUpload: (id: string, mime: string, data: string) => request<{ ok: true; id: string; mime: string; bytes: number }>("POST", `/api/pages/${id}/images`, { mime, data }),
+  pageImageDelete: (id: string, imageId: string) => request<{ ok: true }>("DELETE", `/api/pages/${id}/images/${imageId}`),
   contentInsights: () => request<ContentInsights>("GET", "/api/content/insights"),
 };
